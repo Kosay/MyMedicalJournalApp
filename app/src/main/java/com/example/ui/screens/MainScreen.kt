@@ -39,6 +39,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.viewinterop.AndroidView
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
 import coil.compose.AsyncImage
 import com.example.data.*
 import com.example.ui.LocalStrings
@@ -528,6 +534,10 @@ fun BpDetailView(viewModel: HealthViewModel, lang: String) {
     var hrStr by remember { mutableStateOf("") }
     var notesStr by remember { mutableStateOf("") }
 
+    var customTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
+    var useCustomTime by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
     Column(modifier = Modifier.fillMaxSize()) {
         // Trend chart representation
         if (records.isNotEmpty()) {
@@ -537,7 +547,11 @@ fun BpDetailView(viewModel: HealthViewModel, lang: String) {
 
         // Add action button
         Button(
-            onClick = { showDialog = true },
+            onClick = {
+                customTimestamp = System.currentTimeMillis()
+                useCustomTime = false
+                showDialog = true
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
@@ -637,6 +651,27 @@ fun BpDetailView(viewModel: HealthViewModel, lang: String) {
                         modifier = Modifier.fillMaxWidth()
                     )
 
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Checkbox(
+                            checked = useCustomTime,
+                            onCheckedChange = { useCustomTime = it },
+                            colors = CheckboxDefaults.colors(checkedColor = HighlightTeal)
+                        )
+                        Text("Customize date & time (for past records)", fontSize = 13.sp)
+                    }
+
+                    if (useCustomTime) {
+                        DateTimePickerInline(
+                            context = context,
+                            timestamp = customTimestamp,
+                            onTimestampChange = { customTimestamp = it }
+                        )
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End,
@@ -649,7 +684,7 @@ fun BpDetailView(viewModel: HealthViewModel, lang: String) {
                                 val s = systolicStr.toIntOrNull() ?: 120
                                 val d = diastolicStr.toIntOrNull() ?: 80
                                 val h = hrStr.toIntOrNull() ?: 70
-                                viewModel.addBloodPressure(s, d, h, notesStr)
+                                viewModel.addBloodPressure(s, d, h, notesStr, if (useCustomTime) customTimestamp else System.currentTimeMillis())
                                 showDialog = false
                                 systolicStr = ""
                                 diastolicStr = ""
@@ -676,6 +711,10 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
     val categories = listOf("Fasting", "Post-Prandial", "Random", "Bedtime")
     var notesStr by remember { mutableStateOf("") }
 
+    var customTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
+    var useCustomTime by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
     Column(modifier = Modifier.fillMaxSize()) {
         // Trend chart representation
         if (records.isNotEmpty()) {
@@ -685,7 +724,11 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
 
         // Add action button
         Button(
-            onClick = { showDialog = true },
+            onClick = {
+                customTimestamp = System.currentTimeMillis()
+                useCustomTime = false
+                showDialog = true
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
@@ -830,6 +873,27 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
                         modifier = Modifier.fillMaxWidth()
                     )
 
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Checkbox(
+                            checked = useCustomTime,
+                            onCheckedChange = { useCustomTime = it },
+                            colors = CheckboxDefaults.colors(checkedColor = HighlightTeal)
+                        )
+                        Text("Customize date & time (for past records)", fontSize = 13.sp)
+                    }
+
+                    if (useCustomTime) {
+                        DateTimePickerInline(
+                            context = context,
+                            timestamp = customTimestamp,
+                            onTimestampChange = { customTimestamp = it }
+                        )
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End,
@@ -840,7 +904,7 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
                         Button(
                             onClick = {
                                 val s = sugarStr.toFloatOrNull() ?: 100f
-                                viewModel.addBloodSugar(s, categorySelection, notesStr)
+                                viewModel.addBloodSugar(s, categorySelection, notesStr, if (useCustomTime) customTimestamp else System.currentTimeMillis())
                                 showDialog = false
                                 sugarStr = ""
                                 notesStr = ""
@@ -864,6 +928,10 @@ fun WeightDetailView(viewModel: HealthViewModel, lang: String) {
     var weightStr by remember { mutableStateOf("") }
     var notesStr by remember { mutableStateOf("") }
 
+    var customTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
+    var useCustomTime by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
     Column(modifier = Modifier.fillMaxSize()) {
         if (records.isNotEmpty()) {
             val chartPoints = records.take(7).reversed().map { it.weightKg }
@@ -871,7 +939,11 @@ fun WeightDetailView(viewModel: HealthViewModel, lang: String) {
         }
 
         Button(
-            onClick = { showDialog = true },
+            onClick = {
+                customTimestamp = System.currentTimeMillis()
+                useCustomTime = false
+                showDialog = true
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
@@ -952,16 +1024,38 @@ fun WeightDetailView(viewModel: HealthViewModel, lang: String) {
                         modifier = Modifier.fillMaxWidth()
                     )
 
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Checkbox(
+                            checked = useCustomTime,
+                            onCheckedChange = { useCustomTime = it },
+                            colors = CheckboxDefaults.colors(checkedColor = HighlightTeal)
+                        )
+                        Text("Customize date & time (for past records)", fontSize = 13.sp)
+                    }
+
+                    if (useCustomTime) {
+                        DateTimePickerInline(
+                            context = context,
+                            timestamp = customTimestamp,
+                            onTimestampChange = { customTimestamp = it }
+                        )
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         TextButton(onClick = { showDialog = false }) { Text("Cancel") }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = {
                                 val w = weightStr.toFloatOrNull() ?: 70.0f
-                                viewModel.addWeight(w, notesStr)
+                                viewModel.addWeight(w, notesStr, if (useCustomTime) customTimestamp else System.currentTimeMillis())
                                 showDialog = false
                                 weightStr = ""
                                 notesStr = ""
@@ -1111,9 +1205,17 @@ fun SymptomDetailView(viewModel: HealthViewModel, lang: String) {
     var severityStr by remember { mutableStateOf("Mild") } // Mild, Moderate, Severe
     var notesStr by remember { mutableStateOf("") }
 
+    var customTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
+    var useCustomTime by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
     Column(modifier = Modifier.fillMaxSize()) {
         Button(
-            onClick = { showDialog = true },
+            onClick = {
+                customTimestamp = System.currentTimeMillis()
+                useCustomTime = false
+                showDialog = true
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
@@ -1221,15 +1323,37 @@ fun SymptomDetailView(viewModel: HealthViewModel, lang: String) {
                         modifier = Modifier.fillMaxWidth()
                     )
 
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Checkbox(
+                            checked = useCustomTime,
+                            onCheckedChange = { useCustomTime = it },
+                            colors = CheckboxDefaults.colors(checkedColor = HighlightTeal)
+                        )
+                        Text("Customize date & time (for past records)", fontSize = 13.sp)
+                    }
+
+                    if (useCustomTime) {
+                        DateTimePickerInline(
+                            context = context,
+                            timestamp = customTimestamp,
+                            onTimestampChange = { customTimestamp = it }
+                        )
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         TextButton(onClick = { showDialog = false }) { Text("Cancel") }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = {
-                                viewModel.addSymptom(symptomStr, severityStr, notesStr)
+                                viewModel.addSymptom(symptomStr, severityStr, notesStr, if (useCustomTime) customTimestamp else System.currentTimeMillis())
                                 showDialog = false
                                 symptomStr = ""
                                 notesStr = ""
@@ -1252,6 +1376,10 @@ fun SleepDetailView(viewModel: HealthViewModel, lang: String) {
     var hoursStr by remember { mutableStateOf("") }
     var notesStr by remember { mutableStateOf("") }
 
+    var customTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
+    var useCustomTime by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
     Column(modifier = Modifier.fillMaxSize()) {
         if (records.isNotEmpty()) {
             val chartPoints = records.take(7).reversed().map { it.hours }
@@ -1259,7 +1387,11 @@ fun SleepDetailView(viewModel: HealthViewModel, lang: String) {
         }
 
         Button(
-            onClick = { showDialog = true },
+            onClick = {
+                customTimestamp = System.currentTimeMillis()
+                useCustomTime = false
+                showDialog = true
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
@@ -1336,16 +1468,38 @@ fun SleepDetailView(viewModel: HealthViewModel, lang: String) {
                         modifier = Modifier.fillMaxWidth()
                     )
 
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Checkbox(
+                            checked = useCustomTime,
+                            onCheckedChange = { useCustomTime = it },
+                            colors = CheckboxDefaults.colors(checkedColor = HighlightTeal)
+                        )
+                        Text("Customize date & time (for past records)", fontSize = 13.sp)
+                    }
+
+                    if (useCustomTime) {
+                        DateTimePickerInline(
+                            context = context,
+                            timestamp = customTimestamp,
+                            onTimestampChange = { customTimestamp = it }
+                        )
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         TextButton(onClick = { showDialog = false }) { Text("Cancel") }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = {
                                 val h = hoursStr.toFloatOrNull() ?: 8.0f
-                                viewModel.addSleep(h, notesStr)
+                                viewModel.addSleep(h, notesStr, if (useCustomTime) customTimestamp else System.currentTimeMillis())
                                 showDialog = false
                                 hoursStr = ""
                                 notesStr = ""
@@ -1370,9 +1524,17 @@ fun LabResultDetailView(viewModel: HealthViewModel, lang: String) {
     var unitStr by remember { mutableStateOf("mg/dL") }
     var refStr by remember { mutableStateOf("") }
 
+    var customTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
+    var useCustomTime by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
     Column(modifier = Modifier.fillMaxSize()) {
         Button(
-            onClick = { showDialog = true },
+            onClick = {
+                customTimestamp = System.currentTimeMillis()
+                useCustomTime = false
+                showDialog = true
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
@@ -1461,16 +1623,38 @@ fun LabResultDetailView(viewModel: HealthViewModel, lang: String) {
                         modifier = Modifier.fillMaxWidth()
                     )
 
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Checkbox(
+                            checked = useCustomTime,
+                            onCheckedChange = { useCustomTime = it },
+                            colors = CheckboxDefaults.colors(checkedColor = HighlightTeal)
+                        )
+                        Text("Customize date & time (for past records)", fontSize = 13.sp)
+                    }
+
+                    if (useCustomTime) {
+                        DateTimePickerInline(
+                            context = context,
+                            timestamp = customTimestamp,
+                            onTimestampChange = { customTimestamp = it }
+                        )
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         TextButton(onClick = { showDialog = false }) { Text("Cancel") }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = {
                                 val v = valueStr.toFloatOrNull() ?: 100f
-                                viewModel.addLabResult(testNameStr, v, unitStr, refStr)
+                                viewModel.addLabResult(testNameStr, v, unitStr, refStr, if (useCustomTime) customTimestamp else System.currentTimeMillis())
                                 showDialog = false
                                 testNameStr = ""
                                 valueStr = ""
@@ -2161,13 +2345,23 @@ fun HealthSummaryView(viewModel: HealthViewModel, lang: String) {
                 }
 
                 Button(
-                    onClick = { viewModel.shareHTMLReport(context) },
+                    onClick = { viewModel.printPDFReport(context) },
                     modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
                 ) {
-                    Icon(Icons.Default.Share, contentDescription = "Share", tint = SlateDarkBg)
+                    Icon(Icons.Default.Print, contentDescription = "Print/Save PDF", tint = SlateDarkBg)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Create and Share PDF/HTML Report", color = SlateDarkBg, fontWeight = FontWeight.Bold)
+                    Text("Print / Save as Polished PDF", color = SlateDarkBg, fontWeight = FontWeight.Bold)
+                }
+
+                OutlinedButton(
+                    onClick = { viewModel.shareHTMLReport(context) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = HighlightTeal)
+                ) {
+                    Icon(Icons.Default.Share, contentDescription = "Share", tint = HighlightTeal)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Share HTML Report", color = HighlightTeal, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -2647,7 +2841,7 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                     HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
 
                     // Google Drive Backup Section
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
                             text = "Google Drive Backup & Restore",
                             fontWeight = FontWeight.Bold,
@@ -2667,6 +2861,191 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                             color = HighlightTeal
                         )
 
+                        val isGoogleSignedIn by viewModel.isGoogleSignedIn.collectAsState()
+                        val googleAccountEmail by viewModel.googleAccountEmail.collectAsState()
+                        val googleClientId by viewModel.googleClientId.collectAsState()
+                        val manualDriveToken by viewModel.manualDriveToken.collectAsState()
+
+                        var showGoogleAuthWebView by remember { mutableStateOf(false) }
+                        var isAdvancedOptionsExpanded by remember { mutableStateOf(false) }
+
+                        if (showGoogleAuthWebView) {
+                            val authUrl = remember { viewModel.getGoogleAuthUrl() }
+                            Dialog(
+                                onDismissRequest = { showGoogleAuthWebView = false },
+                                properties = DialogProperties(
+                                    dismissOnBackPress = true,
+                                    dismissOnClickOutside = false,
+                                    usePlatformDefaultWidth = false
+                                )
+                            ) {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(16.dp),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(containerColor = SlateDarkBg),
+                                    border = BorderStroke(1.dp, HighlightTeal.copy(alpha = 0.5f))
+                                ) {
+                                    Column(modifier = Modifier.fillMaxSize()) {
+                                        // Header
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "Sign in with Google",
+                                                color = Color.White,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 15.sp
+                                            )
+                                            IconButton(onClick = { showGoogleAuthWebView = false }) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Close,
+                                                    contentDescription = "Close",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
+
+                                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+
+                                        // WebView
+                                        AndroidView(
+                                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                                            factory = { ctx ->
+                                                WebView(ctx).apply {
+                                                    settings.apply {
+                                                        javaScriptEnabled = true
+                                                        domStorageEnabled = true
+                                                        databaseEnabled = true
+                                                        cacheMode = WebSettings.LOAD_DEFAULT
+                                                        userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36"
+                                                    }
+                                                    webViewClient = object : WebViewClient() {
+                                                        override fun shouldOverrideUrlLoading(
+                                                            view: WebView?,
+                                                            request: WebResourceRequest?
+                                                        ): Boolean {
+                                                            val url = request?.url?.toString() ?: ""
+                                                            if (url.startsWith("http://localhost")) {
+                                                                val code = request?.url?.getQueryParameter("code")
+                                                                if (code != null) {
+                                                                    showGoogleAuthWebView = false
+                                                                    viewModel.completeGoogleSignIn(code) { success, msg -> }
+                                                                }
+                                                                return true
+                                                            }
+                                                            return false
+                                                        }
+
+                                                        override fun onPageStarted(
+                                                            view: WebView?,
+                                                            url: String?,
+                                                            favicon: android.graphics.Bitmap?
+                                                        ) {
+                                                            super.onPageStarted(view, url, favicon)
+                                                            if (url != null && url.startsWith("http://localhost")) {
+                                                                val uri = Uri.parse(url)
+                                                                val code = uri.getQueryParameter("code")
+                                                                if (code != null) {
+                                                                    showGoogleAuthWebView = false
+                                                                    viewModel.completeGoogleSignIn(code) { success, msg -> }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                    loadUrl(authUrl)
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Connected Account status or Sign-In button
+                        if (isGoogleSignedIn) {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.05f)),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                border = BorderStroke(1.dp, HighlightTeal.copy(alpha = 0.2f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .clip(CircleShape)
+                                                .background(HighlightTeal)
+                                        )
+                                        Column {
+                                            Text(
+                                                text = "Connected Account",
+                                                fontSize = 11.sp,
+                                                color = Color.White.copy(alpha = 0.5f)
+                                            )
+                                            Text(
+                                                text = googleAccountEmail.ifEmpty { "Patient Drive Storage" },
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
+                                        }
+                                    }
+                                    
+                                    Button(
+                                        onClick = { viewModel.googleSignOut() },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.15f)),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                        shape = RoundedCornerShape(6.dp),
+                                        border = BorderStroke(1.dp, Color.Red.copy(alpha = 0.5f))
+                                    ) {
+                                        Text("Disconnect", color = Color.Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        } else {
+                            Button(
+                                onClick = { showGoogleAuthWebView = true },
+                                modifier = Modifier.fillMaxWidth().height(42.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = "G",
+                                        color = Color(0xFF4285F4),
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 16.sp
+                                    )
+                                    Text(
+                                        text = "Sign In with Google",
+                                        color = SlateDarkBg,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        // Sync Up and Pull Down trigger row
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -2704,6 +3083,81 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                                 }
                             }
                         }
+
+                        // Expandable Advanced Google Settings
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { isAdvancedOptionsExpanded = !isAdvancedOptionsExpanded }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                "Advanced Drive Settings",
+                                fontSize = 11.sp,
+                                color = Color.White.copy(alpha = 0.5f),
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Icon(
+                                imageVector = if (isAdvancedOptionsExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.5f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        if (isAdvancedOptionsExpanded) {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.02f)),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    // Custom Client ID
+                                    OutlinedTextField(
+                                        value = googleClientId,
+                                        onValueChange = { viewModel.updateGoogleClientId(it) },
+                                        label = { Text("Private OAuth Web Client ID (PKCE)", fontSize = 10.sp) },
+                                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = HighlightTeal,
+                                            unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
+                                        )
+                                    )
+                                    
+                                    // Backwards-compatible manual token
+                                    var isTokenVisible by remember { mutableStateOf(false) }
+                                    OutlinedTextField(
+                                        value = manualDriveToken,
+                                        onValueChange = { viewModel.updateManualDriveToken(it) },
+                                        label = { Text("Manual Google Drive Access Token", fontSize = 10.sp) },
+                                        visualTransformation = if (isTokenVisible) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),
+                                        trailingIcon = {
+                                            IconButton(onClick = { isTokenVisible = !isTokenVisible }) {
+                                                val icon = if (isTokenVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
+                                                Icon(icon, contentDescription = "Toggle Visibility", modifier = Modifier.size(16.dp))
+                                            }
+                                        },
+                                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = HighlightTeal,
+                                            unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
+                                        )
+                                    )
+
+                                    Text(
+                                        text = "To guarantee maximum personal backup privacy, you can configure your own OAuth Web Application Client ID in your Google Cloud Developer Console. Make sure to add authorized redirect URI 'http://localhost' (no client secret is needed). This isolates your data entirely from other app instances.",
+                                        fontSize = 9.sp,
+                                        lineHeight = 11.sp,
+                                        color = Color.White.copy(alpha = 0.4f)
+                                    )
+                                }
+                            }
+                        }
                     }
 
                     HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
@@ -2725,6 +3179,78 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
 
         item {
             Spacer(modifier = Modifier.height(20.dp))
+        }
+    }
+}
+
+@Composable
+fun DateTimePickerInline(
+    context: android.content.Context,
+    timestamp: Long,
+    onTimestampChange: (Long) -> Unit,
+    label: String = "Record Date & Time"
+) {
+    val calendar = remember { java.util.Calendar.getInstance() }.apply { timeInMillis = timestamp }
+    
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = HighlightTeal,
+            fontWeight = FontWeight.SemiBold
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Date Button
+            OutlinedButton(
+                onClick = {
+                    android.app.DatePickerDialog(
+                        context,
+                        { _, year, month, dayOfMonth ->
+                            calendar.set(java.util.Calendar.YEAR, year)
+                            calendar.set(java.util.Calendar.MONTH, month)
+                            calendar.set(java.util.Calendar.DAY_OF_MONTH, dayOfMonth)
+                            onTimestampChange(calendar.timeInMillis)
+                        },
+                        calendar.get(java.util.Calendar.YEAR),
+                        calendar.get(java.util.Calendar.MONTH),
+                        calendar.get(java.util.Calendar.DAY_OF_MONTH)
+                    ).show()
+                },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = HighlightTeal)
+            ) {
+                Icon(Icons.Default.DateRange, contentDescription = "Date", modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                val dateSdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                Text(dateSdf.format(calendar.time), fontSize = 13.sp)
+            }
+            
+            // Time Button
+            OutlinedButton(
+                onClick = {
+                    android.app.TimePickerDialog(
+                        context,
+                        { _, hourOfDay, minute ->
+                            calendar.set(java.util.Calendar.HOUR_OF_DAY, hourOfDay)
+                            calendar.set(java.util.Calendar.MINUTE, minute)
+                            onTimestampChange(calendar.timeInMillis)
+                        },
+                        calendar.get(java.util.Calendar.HOUR_OF_DAY),
+                        calendar.get(java.util.Calendar.MINUTE),
+                        true
+                    ).show()
+                },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = HighlightTeal)
+            ) {
+                Icon(Icons.Default.Schedule, contentDescription = "Time", modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                val timeSdf = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+                Text(timeSdf.format(calendar.time), fontSize = 13.sp)
+            }
         }
     }
 }

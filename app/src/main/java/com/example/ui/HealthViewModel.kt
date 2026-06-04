@@ -21,6 +21,7 @@ import com.example.BuildConfig
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.FormBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
@@ -29,6 +30,9 @@ import java.text.SimpleDateFormat
 import java.util.*
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import android.util.Base64
+import java.security.MessageDigest
+import java.security.SecureRandom
 
 class HealthViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as MedicalJournalApp
@@ -61,6 +65,28 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _apiKey = MutableStateFlow(sharedPrefs.getString("apiKey", "") ?: "")
     val apiKey: StateFlow<String> = _apiKey.asStateFlow()
+
+    private val _manualDriveToken = MutableStateFlow(sharedPrefs.getString("manual_drive_token", "") ?: "")
+    val manualDriveToken: StateFlow<String> = _manualDriveToken.asStateFlow()
+
+    fun updateManualDriveToken(token: String) {
+        _manualDriveToken.value = token
+        sharedPrefs.edit().putString("manual_drive_token", token).apply()
+    }
+
+    private val _googleClientId = MutableStateFlow(sharedPrefs.getString("google_client_id", "1046908332468-bgcrp7ve4776u26j5it93fef6n6hco2q.apps.googleusercontent.com") ?: "1046908332468-bgcrp7ve4776u26j5it93fef6n6hco2q.apps.googleusercontent.com")
+    val googleClientId: StateFlow<String> = _googleClientId.asStateFlow()
+
+    fun updateGoogleClientId(clientId: String) {
+        _googleClientId.value = clientId
+        sharedPrefs.edit().putString("google_client_id", clientId).apply()
+    }
+
+    private val _googleAccountEmail = MutableStateFlow(sharedPrefs.getString("google_account_email", "") ?: "")
+    val googleAccountEmail: StateFlow<String> = _googleAccountEmail.asStateFlow()
+
+    private val _isGoogleSignedIn = MutableStateFlow(!sharedPrefs.getString("google_oauth2_refresh_token", "").isNullOrEmpty())
+    val isGoogleSignedIn: StateFlow<Boolean> = _isGoogleSignedIn.asStateFlow()
 
     // --- Search query state ---
     private val _searchQuery = MutableStateFlow("")
@@ -570,6 +596,13 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                 }
 
                 val ext = format.lowercase()
+                val mimeType = when (format.uppercase()) {
+                    "CSV" -> "text/csv"
+                    "JSON" -> "application/json"
+                    "TXT" -> "text/plain"
+                    else -> "text/plain"
+                }
+
                 val filename = "medical_journal_export_${System.currentTimeMillis()}.$ext"
                 val cacheFile = File(context.cacheDir, filename)
                 cacheFile.writeText(contentString)
@@ -581,14 +614,18 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                 )
 
                 val intent = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
+                    type = mimeType
                     putExtra(Intent.EXTRA_STREAM, uri)
                     putExtra(Intent.EXTRA_SUBJECT, "My Medical Journal Export")
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
 
+                val chooserIntent = Intent.createChooser(intent, "Share Report via...").apply {
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+
                 withContext(Dispatchers.Main) {
-                    context.startActivity(Intent.createChooser(intent, "Share Report via..."))
+                    context.startActivity(chooserIntent)
                 }
             } catch (e: Exception) {
                 Log.e("Export", "Error exporting data: ${e.localizedMessage}")
@@ -596,65 +633,233 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun generateHTMLContent(): String {
+        val html = java.lang.StringBuilder()
+        html.append("<!DOCTYPE html><html><head><meta charset='utf-8'><title>Health Record Summary</title><style>")
+        html.append("body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1E293B; background-color: #FFFFFF; padding: 30px; margin: 0; line-height: 1.5; }")
+        html.append(".header-container { border-bottom: 3px solid #14B8A6; padding-bottom: 12px; margin-bottom: 24px; }")
+        html.append(".header-title { font-size: 26px; font-weight: 800; color: #0F172A; text-transform: uppercase; margin: 0; letter-spacing: 0.5px; }")
+        html.append(".header-sub { font-size: 13px; color: #64748B; margin: 4px 0 0 0; }")
+        html.append(".section-card { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 16px; margin-bottom: 20px; }")
+        html.append(".section-title { font-size: 16px; font-weight: 700; color: #0F172A; border-bottom: 2px solid #E2E8F0; padding-bottom: 6px; margin-top: 0; margin-bottom: 12px; }")
+        html.append("table { width: 100%; border-collapse: collapse; margin-top: 8px; margin-bottom: 8px; }")
+        html.append("th, td { padding: 8px 12px; font-size: 13px; text-align: left; border-bottom: 1px solid #E2E8F0; }")
+        html.append("th { background-color: #0F172A; color: #FFFFFF; font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }")
+        html.append("tr:nth-child(even) { background-color: #F8FAFC; }")
+        html.append(".badge { display: inline-block; padding: 2px 6px; font-size: 11px; font-weight: bold; border-radius: 4px; text-transform: uppercase; }")
+        html.append(".badge-active { background-color: #D1FAE5; color: #065F46; }")
+        html.append(".badge-inactive { background-color: #FEE2E2; color: #991B1B; }")
+        html.append(".badge-elevated { background-color: #FEF3C7; color: #92400E; }")
+        html.append(".badge-critical { background-color: #FEE2E2; color: #991B1B; }")
+        html.append(".badge-normal { background-color: #D1FAE5; color: #065F46; }")
+        html.append(".meta-info { margin-bottom: 20px; font-size: 12px; color: #64748B; display: flex; justify-content: space-between; }")
+        html.append(".footer { margin-top: 45px; font-size: 10px; text-align: center; color: #94A3B8; border-top: 1px solid #E2E8F0; padding-top: 12px; }")
+        html.append("</style></head><body>")
+        
+        html.append("<div class='header-container'>")
+        html.append("<h1 class='header-title'>Patient Medical History</h1>")
+        html.append("<p class='header-sub'>Confidential Personal Health Record Ledger</p>")
+        html.append("</div>")
+
+        html.append("<div class='meta-info'>")
+        html.append("<span><strong>Report Generated:</strong> ${formatDate(System.currentTimeMillis())}</span>")
+        html.append("<span><strong>App:</strong> My Medical Journal Secure Sync</span>")
+        html.append("</div>")
+
+        // 1. Emergency Info
+        emergencyInfo.value?.let { info ->
+            html.append("<div class='section-card'>")
+            html.append("<div class='section-title'>Emergency Contact & Information</div>")
+            html.append("<table>")
+            html.append("<tr><td><strong>Full Name:</strong></td><td>${info.fullName}</td><td><strong>Blood Type:</strong></td><td><span class='badge badge-critical'>${info.bloodType}</span></td></tr>")
+            html.append("<tr><td><strong>Chronic Conditions:</strong></td><td>${info.chronicConditions}</td><td><strong>Known Allergies:</strong></td><td>${info.allergies}</td></tr>")
+            html.append("<tr><td><strong>Emergency Contact:</strong></td><td>${info.contactName}</td><td><strong>Contact Phone:</strong></td><td>${info.contactPhone}</td></tr>")
+            if (info.additionalNotes.isNotEmpty()) {
+                html.append("<tr><td><strong>Clinical Notes:</strong></td><td colspan='3'>${info.additionalNotes}</td></tr>")
+            }
+            html.append("</table>")
+            html.append("</div>")
+        }
+
+        // 2. Blood Pressure Logs
+        val bpList = bloodPressureRecords.value
+        if (bpList.isNotEmpty()) {
+            html.append("<div class='section-card'>")
+            html.append("<div class='section-title'>Blood Pressure Logs</div>")
+            html.append("<table><tr><th>Date/Time</th><th>Reading (mmHg)</th><th>Heart Rate (bpm)</th><th>Status</th><th>Clinical Comments</th></tr>")
+            bpList.forEach {
+                val statusBadge = if (it.systolic >= 140 || it.diastolic >= 90) {
+                    "<span class='badge badge-critical'>Stage 2 Hypertension</span>"
+                } else if (it.systolic >= 130 || it.diastolic >= 80) {
+                    "<span class='badge badge-elevated'>Stage 1 Hypertension</span>"
+                } else if (it.systolic >= 120) {
+                    "<span class='badge badge-elevated'>Elevated</span>"
+                } else {
+                    "<span class='badge badge-normal'>Normal</span>"
+                }
+                html.append("<tr><td>${formatDate(it.timestamp)}</td><td><strong>${it.systolic} / ${it.diastolic}</strong></td><td>${it.heartRate} bpm</td><td>$statusBadge</td><td>${it.notes}</td></tr>")
+            }
+            html.append("</table>")
+            html.append("</div>")
+        }
+
+        // 3. Blood Sugar Logs
+        val sugarList = bloodSugarRecords.value
+        if (sugarList.isNotEmpty()) {
+            html.append("<div class='section-card'>")
+            html.append("<div class='section-title'>Blood Sugar Logs (Glucose)</div>")
+            html.append("<table><tr><th>Date/Time</th><th>Value</th><th>Category</th><th>Status</th><th>Notes</th></tr>")
+            sugarList.forEach {
+                val statusBadge = if (it.value >= 140) {
+                    "<span class='badge badge-critical'>High (Hyperglycemia)</span>"
+                } else if (it.value < 70) {
+                    "<span class='badge badge-critical'>Low (Hypoglycemia)</span>"
+                } else {
+                    "<span class='badge badge-normal'>Normal</span>"
+                }
+                html.append("<tr><td>${formatDate(it.timestamp)}</td><td><strong>${it.value} ${it.unit}</strong></td><td>${it.category}</td><td>$statusBadge</td><td>${it.notes}</td></tr>")
+            }
+            html.append("</table>")
+            html.append("</div>")
+        }
+
+        // 4. Weight & BMI logs
+        val weightList = weightRecords.value
+        if (weightList.isNotEmpty()) {
+            html.append("<div class='section-card'>")
+            html.append("<div class='section-title'>Body Weight & BMI</div>")
+            html.append("<table><tr><th>Date/Time</th><th>Weight</th><th>Calculated BMI</th><th>Status</th><th>Notes</th></tr>")
+            weightList.forEach {
+                val heightM = heightCm.value / 100f
+                val bmi = if (heightM > 0) it.weightKg / (heightM * heightM) else 0f
+                val bmiStr = if (bmi > 0) String.format(Locale.US, "%.1f", bmi) else "N/A"
+                val bmiStatus = if (bmi <= 0) ""
+                else if (bmi < 18.5) "<span class='badge badge-elevated'>Underweight</span>"
+                else if (bmi < 25.0) "<span class='badge badge-normal'>Healthy weight</span>"
+                else if (bmi < 30.0) "<span class='badge badge-elevated'>Overweight</span>"
+                else "<span class='badge badge-critical'>Obesity</span>"
+                
+                html.append("<tr><td>${formatDate(it.timestamp)}</td><td><strong>${it.weightKg} kg</strong></td><td>$bmiStr</td><td>$bmiStatus</td><td>${it.notes}</td></tr>")
+            }
+            html.append("</table>")
+            html.append("</div>")
+        }
+
+        // 5. Medications
+        val medList = medications.value
+        if (medList.isNotEmpty()) {
+            html.append("<div class='section-card'>")
+            html.append("<div class='section-title'>Registered Medications</div>")
+            html.append("<table><tr><th>Medication Name</th><th>Dosage Form</th><th>Frequency Details</th><th>Therapeutic Status</th></tr>")
+            medList.forEach {
+                val statusBadge = if (it.isActive) "<span class='badge badge-active'>Active</span>" else "<span class='badge badge-inactive'>Inactive</span>"
+                html.append("<tr><td><strong>${it.name}</strong></td><td>${it.dosage}</td><td>${it.frequency}</td><td>$statusBadge</td></tr>")
+            }
+            html.append("</table>")
+            html.append("</div>")
+        }
+
+        // 6. Symptoms Tracker
+        val symptomList = symptoms.value
+        if (symptomList.isNotEmpty()) {
+            html.append("<div class='section-card'>")
+            html.append("<div class='section-title'>Symptom Records</div>")
+            html.append("<table><tr><th>Date/Time</th><th>Symptom Name</th><th>Reported Severity</th><th>Patient Notes</th></tr>")
+            symptomList.forEach {
+                val sevBadge = when(it.severity.lowercase(Locale.US)) {
+                    "severe" -> "<span class='badge badge-critical'>Severe</span>"
+                    "moderate" -> "<span class='badge badge-elevated'>Moderate</span>"
+                    else -> "<span class='badge badge-normal'>Mild</span>"
+                }
+                html.append("<tr><td>${formatDate(it.timestamp)}</td><td><strong>${it.symptomName}</strong></td><td>$sevBadge</td><td>${it.notes}</td></tr>")
+            }
+            html.append("</table>")
+            html.append("</div>")
+        }
+
+        // 7. Sleep Logs
+        val sleepList = sleepRecords.value
+        if (sleepList.isNotEmpty()) {
+            html.append("<div class='section-card'>")
+            html.append("<div class='section-title'>Sleep Tracking Logs</div>")
+            html.append("<table><tr><th>Date/Time</th><th>Sleep Duration</th><th>Status</th><th>Notes</th></tr>")
+            sleepList.forEach {
+                val statusBadge = if (it.hours < 6f) "<span class='badge badge-critical'>Sleep Deprived</span>"
+                else if (it.hours > 9f) "<span class='badge badge-elevated'>Over-slept</span>"
+                else "<span class='badge badge-normal'>Restful</span>"
+                html.append("<tr><td>${formatDate(it.timestamp)}</td><td><strong>${it.hours} hours</strong></td><td>$statusBadge</td><td>${it.notes}</td></tr>")
+            }
+            html.append("</table>")
+            html.append("</div>")
+        }
+
+        // 8. Lab Results
+        val labs = labResults.value
+        if (labs.isNotEmpty()) {
+            html.append("<div class='section-card'>")
+            html.append("<div class='section-title'>Laboratory Diagnostic Results</div>")
+            html.append("<table><tr><th>Date/Time</th><th>Test Parameter</th><th>Value Measured</th><th>Reference Standard</th></tr>")
+            labs.forEach {
+                html.append("<tr><td>${formatDate(it.timestamp)}</td><td><strong>${it.testName}</strong></td><td><strong>${it.value} ${it.unit}</strong></td><td>${it.referenceRange}</td></tr>")
+            }
+            html.append("</table>")
+            html.append("</div>")
+        }
+
+        // 9. Lifestyle Records
+        val lifestyle = lifestyleRecords.value
+        if (lifestyle.isNotEmpty()) {
+            html.append("<div class='section-card'>")
+            html.append("<div class='section-title'>Lifestyle & Activity Records</div>")
+            html.append("<table><tr><th>Date/Time</th><th>Category</th><th>Registered Amount</th></tr>")
+            lifestyle.forEach {
+                html.append("<tr><td>${formatDate(it.timestamp)}</td><td><strong>${it.type.replaceFirstChar { c -> c.uppercase() }}</strong></td><td>${it.amount}</td></tr>")
+            }
+            html.append("</table>")
+            html.append("</div>")
+        }
+
+        html.append("<div class='footer'>Disclaimer: Generated securely by Patient Medical Journal App. This document is intended as a clinical summaries ledger and does not replace professional diagnostic opinion or counsel.</div>")
+        html.append("</body></html>")
+        return html.toString()
+    }
+
+    fun printPDFReport(context: Context) {
+        viewModelScope.launch(Dispatchers.Main) {
+            try {
+                val htmlContent = generateHTMLContent()
+                val webView = android.webkit.WebView(context)
+                webView.webViewClient = object : android.webkit.WebViewClient() {
+                    override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
+                        val printManager = context.getSystemService(Context.PRINT_SERVICE) as? android.print.PrintManager
+                        if (printManager != null) {
+                            val jobName = "HealthSummary_${System.currentTimeMillis()}"
+                            val printAdapter = webView.createPrintDocumentAdapter(jobName)
+                            printManager.print(
+                                jobName,
+                                printAdapter,
+                                android.print.PrintAttributes.Builder().build()
+                            )
+                        } else {
+                            Log.e("PDFPrint", "PrintManager not available")
+                        }
+                    }
+                }
+                webView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null)
+            } catch (e: Exception) {
+                Log.e("PDFPrint", "Error creating PDF print job: ${e.localizedMessage}")
+            }
+        }
+    }
+
     fun shareHTMLReport(context: Context) {
-        // Generates beautiful responsive health record summary as HTML for PDF-like styling!
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val html = StringBuilder()
-                html.append("<html><head><style>")
-                html.append("body { font-family: sans-serif; color: #1E293B; padding: 24px; }")
-                html.append("h1 { color: #0F172A; border-bottom: 2px solid #E2E8F0; padding-bottom: 8px; }")
-                html.append("h2 { color: #2563EB; margin-top: 24px; }")
-                html.append("table { width: 100%; border-collapse: collapse; margin-top: 12px; }")
-                html.append("th, td { border: 1px solid #E2E8F0; padding: 10px; text-align: left; }")
-                html.append("th { background-color: #F8FAFC; font-weight: bold; }")
-                html.append(".footer { margin-top: 40px; font-size: 11px; text-align: center; color: #64748B; }")
-                html.append("</style></head><body>")
-                
-                html.append("<h1>My Medical Journal - Health Summary</h1>")
-                html.append("<p>Report generated on: ${formatDate(System.currentTimeMillis())}</p>")
-
-                // Emergency Info
-                emergencyInfo.value?.let { info ->
-                    html.append("<h2>Emergency Information</h2>")
-                    html.append("<p><strong>Name:</strong> ${info.fullName}<br/>")
-                    html.append("<strong>Blood Type:</strong> ${info.bloodType}<br/>")
-                    html.append("<strong>Conditions:</strong> ${info.chronicConditions}<br/>")
-                    html.append("<strong>Allergies:</strong> ${info.allergies}<br/>")
-                    html.append("<strong>Emergency Contact:</strong> ${info.contactName} (${info.contactPhone})</p>")
-                }
-
-                // BP History
-                html.append("<h2>Blood Pressure Logs</h2>")
-                html.append("<table><tr><th>Date</th><th>Reading</th><th>Pulse</th><th>Notes</th></tr>")
-                bloodPressureRecords.value.forEach {
-                    html.append("<tr><td>${formatDate(it.timestamp)}</td><td>${it.systolic}/${it.diastolic} mmHg</td><td>${it.heartRate} bpm</td><td>${it.notes}</td></tr>")
-                }
-                html.append("</table>")
-
-                // Weight History
-                html.append("<h2>Weight Logs</h2>")
-                html.append("<table><tr><th>Date</th><th>Weight</th><th>Notes</th></tr>")
-                weightRecords.value.forEach {
-                    html.append("<tr><td>${formatDate(it.timestamp)}</td><td>${it.weightKg} kg</td><td>${it.notes}</td></tr>")
-                }
-                html.append("</table>")
-
-                // Medication History
-                html.append("<h2>Medications</h2>")
-                html.append("<table><tr><th>Name</th><th>Dosage</th><th>Frequency</th><th>Status</th></tr>")
-                medications.value.forEach {
-                    val status = if (it.isActive) "Active" else "Inactive"
-                    html.append("<tr><td>${it.name}</td><td>${it.dosage}</td><td>${it.frequency}</td><td>$status</td></tr>")
-                }
-                html.append("</table>")
-
-                html.append("<div class='footer'>Disclaimer: Generated by my medical journal app. Not a replacement for professional healthcare counsel.</div>")
-                html.append("</body></html>")
+                val html = generateHTMLContent()
 
                 val filename = "medical_journal_report_${System.currentTimeMillis()}.html"
                 val cacheFile = File(context.cacheDir, filename)
-                cacheFile.writeText(html.toString())
+                cacheFile.writeText(html)
 
                 val uri = FileProvider.getUriForFile(
                     context,
@@ -674,6 +879,52 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                 }
             } catch (e: Exception) {
                 Log.e("ReportHTML", e.localizedMessage ?: "HTML Share Error")
+            }
+        }
+    }
+
+    fun writeLocalBackupToUri(context: Context, uri: Uri, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val dbData = generateJSON()
+                context.contentResolver.openOutputStream(uri)?.use { os ->
+                    os.write(dbData.toByteArray())
+                }
+                val now = System.currentTimeMillis()
+                _lastLocalBackupTime.value = now
+                sharedPrefs.edit().putLong("last_local_backup_time", now).apply()
+                withContext(Dispatchers.Main) {
+                    onResult(true, "Success")
+                }
+            } catch (e: Exception) {
+                Log.e("Backup", "Error writing backup to URI: ${e.localizedMessage}")
+                withContext(Dispatchers.Main) {
+                    onResult(false, e.localizedMessage ?: "Unknown Error")
+                }
+            }
+        }
+    }
+
+    fun writeExportToUri(context: Context, uri: Uri, format: String, onResult: (Boolean, String) -> Unit = {_,_ ->}) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val contentString = when (format.uppercase()) {
+                    "CSV" -> generateCSV()
+                    "JSON" -> generateJSON()
+                    "TXT" -> generateTXT()
+                    else -> generateTXT()
+                }
+                context.contentResolver.openOutputStream(uri)?.use { os ->
+                    os.write(contentString.toByteArray())
+                }
+                withContext(Dispatchers.Main) {
+                    onResult(true, "Success")
+                }
+            } catch (e: Exception) {
+                Log.e("Export", "Error writing export to URI: ${e.localizedMessage}")
+                withContext(Dispatchers.Main) {
+                    onResult(false, e.localizedMessage ?: "Unknown Error")
+                }
             }
         }
     }
@@ -903,6 +1154,219 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // --- Google OAuth 2.0 PKCE Flow Support ---
+    private fun generateCodeVerifier(): String {
+        val secureRandom = SecureRandom()
+        val code = ByteArray(32)
+        secureRandom.nextBytes(code)
+        return Base64.encodeToString(code, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
+    }
+
+    private fun generateCodeChallenge(verifier: String): String {
+        val bytes = verifier.toByteArray(Charsets.US_ASCII)
+        val messageDigest = MessageDigest.getInstance("SHA-256")
+        val digest = messageDigest.digest(bytes)
+        return Base64.encodeToString(digest, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
+    }
+
+    fun getGoogleAuthUrl(): String {
+        val verifier = generateCodeVerifier()
+        sharedPrefs.edit().putString("google_oauth2_code_verifier", verifier).apply()
+        
+        val challenge = generateCodeChallenge(verifier)
+        val clientId = _googleClientId.value.trim()
+        val redirectUri = "http://localhost"
+        
+        val scope = java.net.URLEncoder.encode(
+            "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email",
+            "UTF-8"
+        )
+        
+        return "https://accounts.google.com/o/oauth2/v2/auth" +
+                "?client_id=$clientId" +
+                "&redirect_uri=$redirectUri" +
+                "&response_type=code" +
+                "&scope=$scope" +
+                "&code_challenge=$challenge" +
+                "&code_challenge_method=S256" +
+                "&access_type=offline" +
+                "&prompt=consent"
+    }
+
+    fun completeGoogleSignIn(code: String, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                _googleDriveIsSyncing.value = true
+                _googleDriveSyncStatus.value = "Exchanging code for tokens..."
+                
+                val verifier = sharedPrefs.getString("google_oauth2_code_verifier", "") ?: ""
+                val clientId = _googleClientId.value.trim()
+                
+                if (verifier.isEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        onResult(false, "Authentication flow verifier missing. Retrying.")
+                    }
+                    _googleDriveSyncStatus.value = "Sign-in failed."
+                    _googleDriveIsSyncing.value = false
+                    return@launch
+                }
+                
+                val client = OkHttpClient()
+                val formBody = FormBody.Builder()
+                    .add("client_id", clientId)
+                    .add("code_verifier", verifier)
+                    .add("code", code)
+                    .add("redirect_uri", "http://localhost")
+                    .add("grant_type", "authorization_code")
+                    .build()
+                
+                val request = Request.Builder()
+                    .url("https://oauth2.googleapis.com/token")
+                    .post(formBody)
+                    .build()
+                
+                client.newCall(request).execute().use { response ->
+                    val bodyStr = response.body?.string() ?: ""
+                    if (response.isSuccessful && bodyStr.isNotEmpty()) {
+                        val json = JSONObject(bodyStr)
+                        val accessToken = json.optString("access_token")
+                        val refreshToken = json.optString("refresh_token")
+                        val expiresIn = json.optLong("expires_in", 3600)
+                        val expiryTime = System.currentTimeMillis() + (expiresIn * 1000L)
+                        
+                        sharedPrefs.edit()
+                            .putString("google_oauth2_access_token", accessToken)
+                            .putString("google_oauth2_refresh_token", refreshToken)
+                            .putLong("google_oauth2_token_expiry", expiryTime)
+                            .apply()
+                        
+                        _isGoogleSignedIn.value = true
+                        _googleDriveSyncStatus.value = "Retrieving account details..."
+                        
+                        fetchGoogleProfileEmail(accessToken)
+                        
+                        _googleDriveSyncStatus.value = "Logged in successfully!"
+                        withContext(Dispatchers.Main) {
+                            onResult(true, "Signed in successfully!")
+                        }
+                    } else {
+                        Log.e("OAuth", "Code exchange failed: $bodyStr")
+                        _googleDriveSyncStatus.value = "Sign-in exchange failed."
+                        withContext(Dispatchers.Main) {
+                            onResult(false, "OAuth Code exchange failed. Double check your Client ID.")
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("OAuth", "Error Completing Login: ${e.localizedMessage}")
+                _googleDriveSyncStatus.value = "Connection error."
+                withContext(Dispatchers.Main) {
+                    onResult(false, "Connection error: ${e.localizedMessage}")
+                }
+            } finally {
+                _googleDriveIsSyncing.value = false
+            }
+        }
+    }
+
+    private suspend fun getOrRefreshToken(): String? {
+        val refreshToken = sharedPrefs.getString("google_oauth2_refresh_token", "") ?: ""
+        if (refreshToken.isEmpty()) {
+            return null
+        }
+        
+        val expiry = sharedPrefs.getLong("google_oauth2_token_expiry", 0L)
+        val accessToken = sharedPrefs.getString("google_oauth2_access_token", "") ?: ""
+        
+        // If still valid (with 5 min safety buffer), return current access token
+        if (System.currentTimeMillis() < expiry - 300_000L && accessToken.isNotEmpty()) {
+            return accessToken
+        }
+        
+        // Needs automatic refresh!
+        try {
+            _googleDriveSyncStatus.value = "Refreshing connection token..."
+            val clientId = _googleClientId.value.trim()
+            val client = OkHttpClient()
+            val formBody = FormBody.Builder()
+                .add("client_id", clientId)
+                .add("refresh_token", refreshToken)
+                .add("grant_type", "refresh_token")
+                .build()
+            
+            val request = Request.Builder()
+                .url("https://oauth2.googleapis.com/token")
+                .post(formBody)
+                .build()
+            
+            client.newCall(request).execute().use { response ->
+                val bodyStr = response.body?.string() ?: ""
+                if (response.isSuccessful && bodyStr.isNotEmpty()) {
+                    val json = JSONObject(bodyStr)
+                    val newAccessToken = json.optString("access_token")
+                    val expiresIn = json.optLong("expires_in", 3600)
+                    val expiryTime = System.currentTimeMillis() + (expiresIn * 1000L)
+                    
+                    val optNewRefreshToken = json.optString("refresh_token", "")
+                    
+                    val editor = sharedPrefs.edit()
+                    editor.putString("google_oauth2_access_token", newAccessToken)
+                    editor.putLong("google_oauth2_token_expiry", expiryTime)
+                    if (optNewRefreshToken.isNotEmpty()) {
+                        editor.putString("google_oauth2_refresh_token", optNewRefreshToken)
+                    }
+                    editor.apply()
+                    
+                    return newAccessToken
+                } else {
+                    Log.e("OAuth", "Refresh failed: $bodyStr")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("OAuth", "Refresh network error: ${e.localizedMessage}")
+        }
+        
+        return null
+    }
+
+    private fun fetchGoogleProfileEmail(accessToken: String) {
+        val client = OkHttpClient()
+        val request = Request.Builder()
+            .url("https://www.googleapis.com/oauth2/v3/userinfo")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .build()
+        
+        try {
+            client.newCall(request).execute().use { response ->
+                val bodyStr = response.body?.string() ?: ""
+                if (response.isSuccessful && bodyStr.isNotEmpty()) {
+                    val json = JSONObject(bodyStr)
+                    val email = json.optString("email", "")
+                    if (email.isNotEmpty()) {
+                        _googleAccountEmail.value = email
+                        sharedPrefs.edit().putString("google_account_email", email).apply()
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("OAuth", "Profile fetch failed: ${e.localizedMessage}")
+        }
+    }
+
+    fun googleSignOut() {
+        sharedPrefs.edit()
+            .remove("google_oauth2_access_token")
+            .remove("google_oauth2_refresh_token")
+            .remove("google_oauth2_token_expiry")
+            .remove("google_oauth2_code_verifier")
+            .remove("google_account_email")
+            .apply()
+        
+        _googleAccountEmail.value = ""
+        _isGoogleSignedIn.value = false
+        _googleDriveSyncStatus.value = "Disconnected"
+    }
+
     fun syncToGoogleDrive(context: Context) {
         viewModelScope.launch(Dispatchers.IO) {
             _googleDriveIsSyncing.value = true
@@ -912,11 +1376,20 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
             try {
                 val dbJson = generateJSON()
                 
-                val oauthToken = try {
-                    val field = BuildConfig::class.java.getField("GOOGLE_DRIVE_OAUTH_TOKEN")
-                    field.get(null) as? String ?: ""
-                } catch (e: Exception) {
-                    ""
+                // Try dynamic auto token first
+                var oauthToken = getOrRefreshToken() ?: ""
+                
+                // Fallback to manual custom token or BuildConfig compile token
+                if (oauthToken.isEmpty()) {
+                    oauthToken = _manualDriveToken.value
+                    if (oauthToken.isEmpty()) {
+                        oauthToken = try {
+                            val field = BuildConfig::class.java.getField("GOOGLE_DRIVE_OAUTH_TOKEN")
+                            field.get(null) as? String ?: ""
+                        } catch (e: Exception) {
+                            ""
+                        }
+                    }
                 }
 
                 if (oauthToken.isNotEmpty() && oauthToken != "null") {
@@ -978,11 +1451,13 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                             sharedPrefs.edit().putLong("last_drive_backup_time", now).apply()
                             _googleDriveSyncStatus.value = "Synced successfully!"
                         } else {
-                            _googleDriveSyncStatus.value = "Sync failed: Server error or expired token."
+                            val errorMsg = response.body?.string() ?: ""
+                            Log.e("Upload", "Google Drive Upload Failed: $errorMsg")
+                            _googleDriveSyncStatus.value = "Sync failed: expired connection or server error."
                         }
                     }
                 } else {
-                    _googleDriveSyncStatus.value = "Waiting for connection setup..."
+                    _googleDriveSyncStatus.value = "Sign-in required to sync."
                 }
             } catch (e: Exception) {
                 _googleDriveSyncStatus.value = "Sync failed: ${e.localizedMessage ?: "Unknown network error."}"
@@ -999,11 +1474,20 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
             delay(1000)
 
             try {
-                val oauthToken = try {
-                    val field = BuildConfig::class.java.getField("GOOGLE_DRIVE_OAUTH_TOKEN")
-                    field.get(null) as? String ?: ""
-                } catch (e: Exception) {
-                    ""
+                // Try dynamic auto token first
+                var oauthToken = getOrRefreshToken() ?: ""
+                
+                // Fallback to manual custom token or BuildConfig compile token
+                if (oauthToken.isEmpty()) {
+                    oauthToken = _manualDriveToken.value
+                    if (oauthToken.isEmpty()) {
+                        oauthToken = try {
+                            val field = BuildConfig::class.java.getField("GOOGLE_DRIVE_OAUTH_TOKEN")
+                            field.get(null) as? String ?: ""
+                        } catch (e: Exception) {
+                            ""
+                        }
+                    }
                 }
 
                 if (oauthToken.isNotEmpty() && oauthToken != "null") {
@@ -1054,7 +1538,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                         _googleDriveSyncStatus.value = "No backup found in Google Drive."
                     }
                 } else {
-                    _googleDriveSyncStatus.value = "Connection pending."
+                    _googleDriveSyncStatus.value = "Sign-in required to restore."
                 }
             } catch (e: Exception) {
                 _googleDriveSyncStatus.value = "Restore failed: ${e.localizedMessage ?: "Unknown network error."}"
