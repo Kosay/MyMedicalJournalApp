@@ -161,6 +161,12 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun updateBloodSugar(record: BloodSugarRecord) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertBloodSugar(record)
+        }
+    }
+
     fun addBloodPressure(systolic: Int, diastolic: Int, heartRate: Int, notes: String, timestamp: Long = System.currentTimeMillis()) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertBloodPressure(
@@ -181,6 +187,12 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun updateBloodPressure(record: BloodPressureRecord) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertBloodPressure(record)
+        }
+    }
+
     fun addWeight(weightKg: Float, notes: String, timestamp: Long = System.currentTimeMillis()) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertWeight(
@@ -196,6 +208,12 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
     fun deleteWeight(record: WeightRecord) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.deleteWeight(record)
+        }
+    }
+
+    fun updateWeight(record: WeightRecord) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertWeight(record)
         }
     }
 
@@ -218,6 +236,12 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun updateMedication(record: MedicationRecord) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertMedication(record)
+        }
+    }
+
     fun addSymptom(symptomName: String, severity: String, notes: String, timestamp: Long = System.currentTimeMillis()) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertSymptom(
@@ -234,6 +258,12 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
     fun deleteSymptom(record: SymptomRecord) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.deleteSymptom(record)
+        }
+    }
+
+    fun updateSymptom(record: SymptomRecord) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertSymptom(record)
         }
     }
 
@@ -255,6 +285,12 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun updateSleep(record: SleepRecord) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertSleep(record)
+        }
+    }
+
     fun addLabResult(testName: String, value: Float, unit: String, referenceRange: String, timestamp: Long = System.currentTimeMillis()) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertLabResult(
@@ -272,6 +308,12 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
     fun deleteLabResult(record: LabResultRecord) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.deleteLabResult(record)
+        }
+    }
+
+    fun updateLabResult(record: LabResultRecord) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertLabResult(record)
         }
     }
 
@@ -929,26 +971,34 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private fun csvField(value: String): String {
+        val needsQuoting = value.contains(',') || value.contains('"') || value.contains('\n')
+        return if (needsQuoting) "\"${value.replace("\"", "\"\"")}\"" else value
+    }
+
     private fun generateCSV(): String {
         val s = StringBuilder()
-        s.append("Category,Metric,Metric2,Unit,Timestamp,Notes\n")
+        s.append("Category,Date_Time,Value1,Value2,Value3,Unit,Notes\n")
         bloodPressureRecords.value.forEach {
-            s.append("BloodPressure,${it.systolic}/${it.diastolic},${it.heartRate},mmHg,${formatDate(it.timestamp)},\"${it.notes}\"\n")
+            s.append("BloodPressure,${formatDate(it.timestamp)},${it.systolic},${it.diastolic},${it.heartRate},mmHg,${csvField(it.notes)}\n")
+        }
+        bloodSugarRecords.value.forEach {
+            s.append("BloodSugar,${formatDate(it.timestamp)},${it.value},${csvField(it.category)},,${it.unit},${csvField(it.notes)}\n")
         }
         weightRecords.value.forEach {
-            s.append("Weight,${it.weightKg},,kg,${formatDate(it.timestamp)},\"${it.notes}\"\n")
+            s.append("Weight,${formatDate(it.timestamp)},${it.weightKg},,,kg,${csvField(it.notes)}\n")
         }
         medications.value.forEach {
-            s.append("Medication,${it.name},${it.dosage},${it.frequency},,${if (it.isActive) "Active" else "Inactive"}\n")
+            s.append("Medication,,${csvField(it.name)},${csvField(it.dosage)},${csvField(it.frequency)},,${if (it.isActive) "Active" else "Inactive"}\n")
         }
         symptoms.value.forEach {
-            s.append("Symptom,${it.symptomName},${it.severity},,${formatDate(it.timestamp)},\"${it.notes}\"\n")
+            s.append("Symptom,${formatDate(it.timestamp)},${csvField(it.symptomName)},${csvField(it.severity)},,,${csvField(it.notes)}\n")
         }
         sleepRecords.value.forEach {
-            s.append("Sleep,${it.hours},,hours,${formatDate(it.timestamp)},\"${it.notes}\"\n")
+            s.append("Sleep,${formatDate(it.timestamp)},${it.hours},,,hours,${csvField(it.notes)}\n")
         }
         labResults.value.forEach {
-            s.append("LabResult,${it.testName},${it.value},${it.unit},${formatDate(it.timestamp)},\"${it.referenceRange}\"\n")
+            s.append("LabResult,${formatDate(it.timestamp)},${csvField(it.testName)},${it.value},,${csvField(it.unit)},${csvField(it.referenceRange)}\n")
         }
         return s.toString()
     }
@@ -1021,6 +1071,18 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         }
         root.put("blood_sugar", sugarArr)
 
+        val labArr = JSONArray()
+        labResults.value.forEach {
+            labArr.put(JSONObject().apply {
+                put("testName", it.testName)
+                put("value", it.value)
+                put("unit", it.unit)
+                put("referenceRange", it.referenceRange)
+                put("timestamp", it.timestamp)
+            })
+        }
+        root.put("lab_results", labArr)
+
         return root.toString(2)
     }
 
@@ -1053,6 +1115,10 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         s.append("\nLAB RESULTS:\n")
         labResults.value.forEach {
             s.append("- ${formatDate(it.timestamp)}: ${it.testName} = ${it.value} ${it.unit} (Ref: ${it.referenceRange})\n")
+        }
+        s.append("\nBLOOD SUGAR RECORDS:\n")
+        bloodSugarRecords.value.forEach {
+            s.append("- ${formatDate(it.timestamp)}: ${it.value} ${it.unit} (${it.category}) | Notes: ${it.notes}\n")
         }
         return s.toString()
     }
