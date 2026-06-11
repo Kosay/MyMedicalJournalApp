@@ -528,44 +528,40 @@ fun TrackMenuItemCard(title: String, onClick: () -> Unit) {
 fun BpDetailView(viewModel: HealthViewModel, lang: String) {
     val records by viewModel.bloodPressureRecords.collectAsState()
     var showDialog by remember { mutableStateOf(false) }
+    var editingRecord by remember { mutableStateOf<com.example.data.BloodPressureRecord?>(null) }
 
     var systolicStr by remember { mutableStateOf("") }
     var diastolicStr by remember { mutableStateOf("") }
     var hrStr by remember { mutableStateOf("") }
     var notesStr by remember { mutableStateOf("") }
-
     var customTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
-    var useCustomTime by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Trend chart representation
-        if (records.isNotEmpty()) {
-            val chartPoints = records.take(7).reversed().map { it.systolic.toFloat() }
-            TrendLineChart(points = chartPoints, label = "Systolic BP")
+        if (records.size >= 2) {
+            val systolicPoints = records.take(7).reversed().map { it.systolic.toFloat() }
+            val diastolicPoints = records.take(7).reversed().map { it.diastolic.toFloat() }
+            DualTrendLineChart(
+                points1 = systolicPoints, label1 = "Systolic",
+                points2 = diastolicPoints, label2 = "Diastolic"
+            )
         }
 
-        // Add action button
         Button(
             onClick = {
+                editingRecord = null
+                systolicStr = ""; diastolicStr = ""; hrStr = ""; notesStr = ""
                 customTimestamp = System.currentTimeMillis()
-                useCustomTime = false
                 showDialog = true
             },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
         ) {
             Text(LocalStrings.get("add_record", lang), color = SlateDarkBg, fontWeight = FontWeight.Bold)
         }
 
-        // Logs list
         LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .padding(horizontal = 16.dp),
+            modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(records) { record ->
@@ -574,24 +570,18 @@ fun BpDetailView(viewModel: HealthViewModel, lang: String) {
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "${record.systolic}/${record.diastolic} mmHg (HR: ${record.heartRate} bpm)",
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             if (record.notes.isNotEmpty()) {
-                                Text(
-                                    text = record.notes,
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Text(record.notes, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             Text(
                                 text = viewModel.formatDate(record.timestamp),
@@ -599,8 +589,21 @@ fun BpDetailView(viewModel: HealthViewModel, lang: String) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                             )
                         }
-                        IconButton(onClick = { viewModel.deleteBloodPressure(record) }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AlertRed)
+                        Row {
+                            IconButton(onClick = {
+                                editingRecord = record
+                                systolicStr = record.systolic.toString()
+                                diastolicStr = record.diastolic.toString()
+                                hrStr = record.heartRate.toString()
+                                notesStr = record.notes
+                                customTimestamp = record.timestamp
+                                showDialog = true
+                            }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = HighlightTeal)
+                            }
+                            IconButton(onClick = { viewModel.deleteBloodPressure(record) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AlertRed)
+                            }
                         }
                     }
                 }
@@ -609,90 +612,70 @@ fun BpDetailView(viewModel: HealthViewModel, lang: String) {
     }
 
     if (showDialog) {
-        Dialog(onDismissRequest = { showDialog = false }) {
+        Dialog(onDismissRequest = { showDialog = false; editingRecord = null }) {
             Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Record Blood Pressure", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text(
+                        if (editingRecord != null) "Edit Blood Pressure" else "Record Blood Pressure",
+                        fontWeight = FontWeight.Bold, fontSize = 16.sp
+                    )
                     OutlinedTextField(
-                        value = systolicStr,
-                        onValueChange = { systolicStr = it },
+                        value = systolicStr, onValueChange = { systolicStr = it },
                         label = { Text("Systolic (mmHg)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
-                        value = diastolicStr,
-                        onValueChange = { diastolicStr = it },
+                        value = diastolicStr, onValueChange = { diastolicStr = it },
                         label = { Text("Diastolic (mmHg)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
-                        value = hrStr,
-                        onValueChange = { hrStr = it },
+                        value = hrStr, onValueChange = { hrStr = it },
                         label = { Text("Heart Rate (bpm)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
-                        value = notesStr,
-                        onValueChange = { notesStr = it },
+                        value = notesStr, onValueChange = { notesStr = it },
                         label = { Text("Notes") },
                         modifier = Modifier.fillMaxWidth()
                     )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Checkbox(
-                            checked = useCustomTime,
-                            onCheckedChange = { useCustomTime = it },
-                            colors = CheckboxDefaults.colors(checkedColor = HighlightTeal)
-                        )
-                        Text("Customize date & time (for past records)", fontSize = 13.sp)
-                    }
-
-                    if (useCustomTime) {
-                        DateTimePickerInline(
-                            context = context,
-                            timestamp = customTimestamp,
-                            onTimestampChange = { customTimestamp = it }
-                        )
-                    }
-
+                    DateTimePickerInline(
+                        context = context,
+                        timestamp = customTimestamp,
+                        onTimestampChange = { customTimestamp = it }
+                    )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        TextButton(onClick = { showDialog = false }) { Text("Cancel") }
+                        TextButton(onClick = { showDialog = false; editingRecord = null }) { Text("Cancel") }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = {
                                 val s = systolicStr.toIntOrNull() ?: 120
                                 val d = diastolicStr.toIntOrNull() ?: 80
                                 val h = hrStr.toIntOrNull() ?: 70
-                                viewModel.addBloodPressure(s, d, h, notesStr, if (useCustomTime) customTimestamp else System.currentTimeMillis())
-                                showDialog = false
-                                systolicStr = ""
-                                diastolicStr = ""
-                                hrStr = ""
-                                notesStr = ""
+                                val rec = editingRecord
+                                if (rec != null) {
+                                    viewModel.updateBloodPressure(rec.copy(systolic = s, diastolic = d, heartRate = h, notes = notesStr, timestamp = customTimestamp))
+                                } else {
+                                    viewModel.addBloodPressure(s, d, h, notesStr, customTimestamp)
+                                }
+                                showDialog = false; editingRecord = null
+                                systolicStr = ""; diastolicStr = ""; hrStr = ""; notesStr = ""
                             }
                         ) {
-                            Text("Save")
+                            Text(if (editingRecord != null) "Update" else "Save")
                         }
                     }
                 }
@@ -705,44 +688,36 @@ fun BpDetailView(viewModel: HealthViewModel, lang: String) {
 fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
     val records by viewModel.bloodSugarRecords.collectAsState()
     var showDialog by remember { mutableStateOf(false) }
+    var editingRecord by remember { mutableStateOf<com.example.data.BloodSugarRecord?>(null) }
 
     var sugarStr by remember { mutableStateOf("") }
     var categorySelection by remember { mutableStateOf("Fasting") }
     val categories = listOf("Fasting", "Post-Prandial", "Random", "Bedtime")
     var notesStr by remember { mutableStateOf("") }
-
     var customTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
-    var useCustomTime by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Trend chart representation
         if (records.isNotEmpty()) {
             val chartPoints = records.take(7).reversed().map { it.value }
             TrendLineChart(points = chartPoints, label = "Blood Sugar (${records.firstOrNull()?.unit ?: "mg/dL"})")
         }
 
-        // Add action button
         Button(
             onClick = {
+                editingRecord = null
+                sugarStr = ""; categorySelection = "Fasting"; notesStr = ""
                 customTimestamp = System.currentTimeMillis()
-                useCustomTime = false
                 showDialog = true
             },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
         ) {
             Text(LocalStrings.get("add_record", lang), color = SlateDarkBg, fontWeight = FontWeight.Bold)
         }
 
-        // Logs list
         LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .padding(horizontal = 16.dp),
+            modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(records) { record ->
@@ -753,9 +728,7 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -763,8 +736,7 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = "${record.value.toInt()} ${record.unit}",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold, fontSize = 16.sp,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -773,35 +745,32 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
                                     shape = RoundedCornerShape(4.dp)
                                 ) {
                                     Text(
-                                        text = statusString,
-                                        color = statusColor,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
+                                        text = statusString, color = statusColor,
+                                        fontSize = 10.sp, fontWeight = FontWeight.Bold,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
                                 }
                             }
-                            Text(
-                                text = record.category,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Text(record.category, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             if (record.notes.isNotEmpty()) {
-                                Text(
-                                    text = record.notes,
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                                )
+                                Text(record.notes, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f))
                             }
-                            Text(
-                                text = viewModel.formatDate(record.timestamp),
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                            )
+                            Text(viewModel.formatDate(record.timestamp), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                         }
-                        IconButton(onClick = { viewModel.deleteBloodSugar(record) }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AlertRed)
+                        Row {
+                            IconButton(onClick = {
+                                editingRecord = record
+                                sugarStr = record.value.toString()
+                                categorySelection = record.category
+                                notesStr = record.notes
+                                customTimestamp = record.timestamp
+                                showDialog = true
+                            }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = HighlightTeal)
+                            }
+                            IconButton(onClick = { viewModel.deleteBloodSugar(record) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AlertRed)
+                            }
                         }
                     }
                 }
@@ -810,108 +779,63 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
     }
 
     if (showDialog) {
-        Dialog(onDismissRequest = { showDialog = false }) {
+        Dialog(onDismissRequest = { showDialog = false; editingRecord = null }) {
             Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Record Blood Sugar Level", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    
+                    Text(
+                        if (editingRecord != null) "Edit Blood Sugar" else "Record Blood Sugar Level",
+                        fontWeight = FontWeight.Bold, fontSize = 16.sp
+                    )
                     OutlinedTextField(
-                        value = sugarStr,
-                        onValueChange = { sugarStr = it },
+                        value = sugarStr, onValueChange = { sugarStr = it },
                         label = { Text("Blood Sugar (mg/dL)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
-
                     Text("Measurement Type / Category", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         categories.forEach { cat ->
                             val isSelected = categorySelection == cat
-                            val buttonColor = if (isSelected) HighlightTeal else MaterialTheme.colorScheme.surfaceVariant
-                            val textColor = if (isSelected) SlateDarkBg else MaterialTheme.colorScheme.onSurfaceVariant
                             Card(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable { categorySelection = cat },
+                                modifier = Modifier.weight(1f).clickable { categorySelection = cat },
                                 shape = RoundedCornerShape(8.dp),
-                                colors = CardDefaults.cardColors(containerColor = buttonColor)
+                                colors = CardDefaults.cardColors(containerColor = if (isSelected) HighlightTeal else MaterialTheme.colorScheme.surfaceVariant)
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 8.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = cat,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = textColor
-                                    )
+                                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+                                    Text(cat, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (isSelected) SlateDarkBg else MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         }
                     }
-
                     OutlinedTextField(
-                        value = notesStr,
-                        onValueChange = { notesStr = it },
-                        label = { Text("Notes") },
-                        modifier = Modifier.fillMaxWidth()
+                        value = notesStr, onValueChange = { notesStr = it },
+                        label = { Text("Notes") }, modifier = Modifier.fillMaxWidth()
                     )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Checkbox(
-                            checked = useCustomTime,
-                            onCheckedChange = { useCustomTime = it },
-                            colors = CheckboxDefaults.colors(checkedColor = HighlightTeal)
-                        )
-                        Text("Customize date & time (for past records)", fontSize = 13.sp)
-                    }
-
-                    if (useCustomTime) {
-                        DateTimePickerInline(
-                            context = context,
-                            timestamp = customTimestamp,
-                            onTimestampChange = { customTimestamp = it }
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        TextButton(onClick = { showDialog = false }) { Text("Cancel") }
+                    DateTimePickerInline(context = context, timestamp = customTimestamp, onTimestampChange = { customTimestamp = it })
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { showDialog = false; editingRecord = null }) { Text("Cancel") }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = {
                                 val s = sugarStr.toFloatOrNull() ?: 100f
-                                viewModel.addBloodSugar(s, categorySelection, notesStr, if (useCustomTime) customTimestamp else System.currentTimeMillis())
-                                showDialog = false
-                                sugarStr = ""
-                                notesStr = ""
+                                val rec = editingRecord
+                                if (rec != null) {
+                                    viewModel.updateBloodSugar(rec.copy(value = s, category = categorySelection, notes = notesStr, timestamp = customTimestamp))
+                                } else {
+                                    viewModel.addBloodSugar(s, categorySelection, notesStr, customTimestamp)
+                                }
+                                showDialog = false; editingRecord = null
+                                sugarStr = ""; notesStr = ""
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
                         ) {
-                            Text("Save", color = SlateDarkBg, fontWeight = FontWeight.Bold)
+                            Text(if (editingRecord != null) "Update" else "Save", color = SlateDarkBg, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -924,12 +848,11 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
 fun WeightDetailView(viewModel: HealthViewModel, lang: String) {
     val records by viewModel.weightRecords.collectAsState()
     var showDialog by remember { mutableStateOf(false) }
+    var editingRecord by remember { mutableStateOf<com.example.data.WeightRecord?>(null) }
 
     var weightStr by remember { mutableStateOf("") }
     var notesStr by remember { mutableStateOf("") }
-
     var customTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
-    var useCustomTime by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -940,23 +863,18 @@ fun WeightDetailView(viewModel: HealthViewModel, lang: String) {
 
         Button(
             onClick = {
+                editingRecord = null; weightStr = ""; notesStr = ""
                 customTimestamp = System.currentTimeMillis()
-                useCustomTime = false
                 showDialog = true
             },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
         ) {
             Text(LocalStrings.get("add_record", lang), color = SlateDarkBg, fontWeight = FontWeight.Bold)
         }
 
         LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .padding(horizontal = 16.dp),
+            modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(records) { record ->
@@ -965,29 +883,30 @@ fun WeightDetailView(viewModel: HealthViewModel, lang: String) {
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
-                            Text(
-                                text = "${record.weightKg} kg",
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("${record.weightKg} kg", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                             if (record.notes.isNotEmpty()) {
                                 Text(record.notes, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            Text(
-                                text = viewModel.formatDate(record.timestamp),
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                            )
+                            Text(viewModel.formatDate(record.timestamp), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                         }
-                        IconButton(onClick = { viewModel.deleteWeight(record) }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AlertRed)
+                        Row {
+                            IconButton(onClick = {
+                                editingRecord = record
+                                weightStr = record.weightKg.toString()
+                                notesStr = record.notes
+                                customTimestamp = record.timestamp
+                                showDialog = true
+                            }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = HighlightTeal)
+                            }
+                            IconButton(onClick = { viewModel.deleteWeight(record) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AlertRed)
+                            }
                         }
                     }
                 }
@@ -996,72 +915,39 @@ fun WeightDetailView(viewModel: HealthViewModel, lang: String) {
     }
 
     if (showDialog) {
-        Dialog(onDismissRequest = { showDialog = false }) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                shape = RoundedCornerShape(16.dp)
-            ) {
+        Dialog(onDismissRequest = { showDialog = false; editingRecord = null }) {
+            Card(modifier = Modifier.fillMaxWidth().padding(16.dp), shape = RoundedCornerShape(16.dp)) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Add Weight Record", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text(if (editingRecord != null) "Edit Weight" else "Add Weight Record", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     OutlinedTextField(
-                        value = weightStr,
-                        onValueChange = { weightStr = it },
+                        value = weightStr, onValueChange = { weightStr = it },
                         label = { Text("Weight (kg)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
-                        value = notesStr,
-                        onValueChange = { notesStr = it },
-                        label = { Text("Notes") },
-                        modifier = Modifier.fillMaxWidth()
+                        value = notesStr, onValueChange = { notesStr = it },
+                        label = { Text("Notes") }, modifier = Modifier.fillMaxWidth()
                     )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Checkbox(
-                            checked = useCustomTime,
-                            onCheckedChange = { useCustomTime = it },
-                            colors = CheckboxDefaults.colors(checkedColor = HighlightTeal)
-                        )
-                        Text("Customize date & time (for past records)", fontSize = 13.sp)
-                    }
-
-                    if (useCustomTime) {
-                        DateTimePickerInline(
-                            context = context,
-                            timestamp = customTimestamp,
-                            onTimestampChange = { customTimestamp = it }
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        TextButton(onClick = { showDialog = false }) { Text("Cancel") }
+                    DateTimePickerInline(context = context, timestamp = customTimestamp, onTimestampChange = { customTimestamp = it })
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { showDialog = false; editingRecord = null }) { Text("Cancel") }
                         Spacer(modifier = Modifier.width(8.dp))
-                        Button(
-                            onClick = {
-                                val w = weightStr.toFloatOrNull() ?: 70.0f
-                                viewModel.addWeight(w, notesStr, if (useCustomTime) customTimestamp else System.currentTimeMillis())
-                                showDialog = false
-                                weightStr = ""
-                                notesStr = ""
+                        Button(onClick = {
+                            val w = weightStr.toFloatOrNull() ?: 70.0f
+                            val rec = editingRecord
+                            if (rec != null) {
+                                viewModel.updateWeight(rec.copy(weightKg = w, notes = notesStr, timestamp = customTimestamp))
+                            } else {
+                                viewModel.addWeight(w, notesStr, customTimestamp)
                             }
-                        ) {
-                            Text("Save")
+                            showDialog = false; editingRecord = null
+                            weightStr = ""; notesStr = ""
+                        }) {
+                            Text(if (editingRecord != null) "Update" else "Save")
                         }
                     }
                 }
@@ -1074,27 +960,27 @@ fun WeightDetailView(viewModel: HealthViewModel, lang: String) {
 fun MedicationDetailView(viewModel: HealthViewModel, lang: String) {
     val records by viewModel.medications.collectAsState()
     var showDialog by remember { mutableStateOf(false) }
+    var editingRecord by remember { mutableStateOf<com.example.data.MedicationRecord?>(null) }
 
     var nameStr by remember { mutableStateOf("") }
     var dosageStr by remember { mutableStateOf("") }
     var freqStr by remember { mutableStateOf("") }
+    var isActiveState by remember { mutableStateOf(true) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Button(
-            onClick = { showDialog = true },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            onClick = {
+                editingRecord = null; nameStr = ""; dosageStr = ""; freqStr = ""; isActiveState = true
+                showDialog = true
+            },
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
         ) {
             Text(LocalStrings.get("add_record", lang), color = SlateDarkBg, fontWeight = FontWeight.Bold)
         }
 
         LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .padding(horizontal = 16.dp),
+            modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(records) { record ->
@@ -1103,34 +989,32 @@ fun MedicationDetailView(viewModel: HealthViewModel, lang: String) {
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(record.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
                             Text("Dosage: ${record.dosage} | Frequency: ${record.frequency}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            
-                            Row(
-                                modifier = Modifier.padding(top = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                val activeText = if (record.isActive) "Active" else "Inactive"
+                            Row(modifier = Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                                 val activeColor = if (record.isActive) HighlightTeal else WarningYellow
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .clip(CircleShape)
-                                        .background(activeColor)
-                                )
+                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(activeColor))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text(activeText, fontSize = 11.sp, color = activeColor, fontWeight = FontWeight.Bold)
+                                Text(if (record.isActive) "Active" else "Inactive", fontSize = 11.sp, color = activeColor, fontWeight = FontWeight.Bold)
                             }
                         }
-                        IconButton(onClick = { viewModel.deleteMedication(record) }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AlertRed)
+                        Row {
+                            IconButton(onClick = {
+                                editingRecord = record
+                                nameStr = record.name; dosageStr = record.dosage
+                                freqStr = record.frequency; isActiveState = record.isActive
+                                showDialog = true
+                            }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = HighlightTeal)
+                            }
+                            IconButton(onClick = { viewModel.deleteMedication(record) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AlertRed)
+                            }
                         }
                     }
                 }
@@ -1139,55 +1023,35 @@ fun MedicationDetailView(viewModel: HealthViewModel, lang: String) {
     }
 
     if (showDialog) {
-        Dialog(onDismissRequest = { showDialog = false }) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                shape = RoundedCornerShape(16.dp)
-            ) {
+        Dialog(onDismissRequest = { showDialog = false; editingRecord = null }) {
+            Card(modifier = Modifier.fillMaxWidth().padding(16.dp), shape = RoundedCornerShape(16.dp)) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Add Medication", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    OutlinedTextField(
-                        value = nameStr,
-                        onValueChange = { nameStr = it },
-                        label = { Text("Medication Name") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = dosageStr,
-                        onValueChange = { dosageStr = it },
-                        label = { Text("Dosage (e.g. 10mg / 500mg)") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = freqStr,
-                        onValueChange = { freqStr = it },
-                        label = { Text("Frequency (e.g. Once daily / evening)") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        TextButton(onClick = { showDialog = false }) { Text("Cancel") }
+                    Text(if (editingRecord != null) "Edit Medication" else "Add Medication", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    OutlinedTextField(value = nameStr, onValueChange = { nameStr = it }, label = { Text("Medication Name") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = dosageStr, onValueChange = { dosageStr = it }, label = { Text("Dosage (e.g. 10mg / 500mg)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = freqStr, onValueChange = { freqStr = it }, label = { Text("Frequency (e.g. Once daily / evening)") }, modifier = Modifier.fillMaxWidth())
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Switch(checked = isActiveState, onCheckedChange = { isActiveState = it }, colors = SwitchDefaults.colors(checkedThumbColor = HighlightTeal, checkedTrackColor = HighlightTeal.copy(alpha = 0.4f)))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Button(
-                            onClick = {
-                                viewModel.addMedication(nameStr, dosageStr, freqStr, true)
-                                showDialog = false
-                                nameStr = ""
-                                dosageStr = ""
-                                freqStr = ""
+                        Text(if (isActiveState) "Active" else "Inactive", fontSize = 13.sp, color = if (isActiveState) HighlightTeal else WarningYellow)
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { showDialog = false; editingRecord = null }) { Text("Cancel") }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(onClick = {
+                            val rec = editingRecord
+                            if (rec != null) {
+                                viewModel.updateMedication(rec.copy(name = nameStr, dosage = dosageStr, frequency = freqStr, isActive = isActiveState))
+                            } else {
+                                viewModel.addMedication(nameStr, dosageStr, freqStr, isActiveState)
                             }
-                        ) {
-                            Text("Save")
+                            showDialog = false; editingRecord = null
+                            nameStr = ""; dosageStr = ""; freqStr = ""
+                        }) {
+                            Text(if (editingRecord != null) "Update" else "Save")
                         }
                     }
                 }
@@ -1200,35 +1064,29 @@ fun MedicationDetailView(viewModel: HealthViewModel, lang: String) {
 fun SymptomDetailView(viewModel: HealthViewModel, lang: String) {
     val records by viewModel.symptoms.collectAsState()
     var showDialog by remember { mutableStateOf(false) }
+    var editingRecord by remember { mutableStateOf<com.example.data.SymptomRecord?>(null) }
 
     var symptomStr by remember { mutableStateOf("") }
-    var severityStr by remember { mutableStateOf("Mild") } // Mild, Moderate, Severe
+    var severityStr by remember { mutableStateOf("Mild") }
     var notesStr by remember { mutableStateOf("") }
-
     var customTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
-    var useCustomTime by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxSize()) {
         Button(
             onClick = {
+                editingRecord = null; symptomStr = ""; severityStr = "Mild"; notesStr = ""
                 customTimestamp = System.currentTimeMillis()
-                useCustomTime = false
                 showDialog = true
             },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
         ) {
             Text(LocalStrings.get("add_record", lang), color = SlateDarkBg, fontWeight = FontWeight.Bold)
         }
 
         LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .padding(horizontal = 16.dp),
+            modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(records) { record ->
@@ -1237,38 +1095,35 @@ fun SymptomDetailView(viewModel: HealthViewModel, lang: String) {
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(record.symptomName, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = record.severity,
-                                    fontSize = 11.sp,
-                                    color = when(record.severity.lowercase()) {
-                                        "mild" -> HighlightTeal
-                                        "moderate" -> WarningYellow
-                                        else -> AlertRed
-                                    },
+                                    text = record.severity, fontSize = 11.sp,
+                                    color = when(record.severity.lowercase()) { "mild" -> HighlightTeal; "moderate" -> WarningYellow; else -> AlertRed },
                                     fontWeight = FontWeight.Bold
                                 )
                             }
-                            if (record.notes.isNotEmpty()) {
-                                Text(record.notes, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Text(
-                                text = viewModel.formatDate(record.timestamp),
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                            )
+                            if (record.notes.isNotEmpty()) { Text(record.notes, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            Text(viewModel.formatDate(record.timestamp), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                         }
-                        IconButton(onClick = { viewModel.deleteSymptom(record) }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AlertRed)
+                        Row {
+                            IconButton(onClick = {
+                                editingRecord = record
+                                symptomStr = record.symptomName; severityStr = record.severity
+                                notesStr = record.notes; customTimestamp = record.timestamp
+                                showDialog = true
+                            }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = HighlightTeal)
+                            }
+                            IconButton(onClick = { viewModel.deleteSymptom(record) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AlertRed)
+                            }
                         }
                     }
                 }
@@ -1277,89 +1132,39 @@ fun SymptomDetailView(viewModel: HealthViewModel, lang: String) {
     }
 
     if (showDialog) {
-        Dialog(onDismissRequest = { showDialog = false }) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                shape = RoundedCornerShape(16.dp)
-            ) {
+        Dialog(onDismissRequest = { showDialog = false; editingRecord = null }) {
+            Card(modifier = Modifier.fillMaxWidth().padding(16.dp), shape = RoundedCornerShape(16.dp)) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Record Symptom", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    OutlinedTextField(
-                        value = symptomStr,
-                        onValueChange = { symptomStr = it },
-                        label = { Text("Symptom Description") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    
+                    Text(if (editingRecord != null) "Edit Symptom" else "Record Symptom", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    OutlinedTextField(value = symptomStr, onValueChange = { symptomStr = it }, label = { Text("Symptom Description") }, modifier = Modifier.fillMaxWidth())
                     Text("Severity Status", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf("Mild", "Moderate", "Severe").forEach { m ->
                             val active = m == severityStr
-                            Button(
-                                onClick = { severityStr = m },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (active) HighlightTeal else MaterialTheme.colorScheme.surfaceVariant
-                                )
-                            ) {
+                            Button(onClick = { severityStr = m }, colors = ButtonDefaults.buttonColors(containerColor = if (active) HighlightTeal else MaterialTheme.colorScheme.surfaceVariant)) {
                                 Text(m, color = if (active) SlateDarkBg else MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
                             }
                         }
                     }
-
-                    OutlinedTextField(
-                        value = notesStr,
-                        onValueChange = { notesStr = it },
-                        label = { Text("Additional notes") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Checkbox(
-                            checked = useCustomTime,
-                            onCheckedChange = { useCustomTime = it },
-                            colors = CheckboxDefaults.colors(checkedColor = HighlightTeal)
-                        )
-                        Text("Customize date & time (for past records)", fontSize = 13.sp)
-                    }
-
-                    if (useCustomTime) {
-                        DateTimePickerInline(
-                            context = context,
-                            timestamp = customTimestamp,
-                            onTimestampChange = { customTimestamp = it }
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        TextButton(onClick = { showDialog = false }) { Text("Cancel") }
+                    OutlinedTextField(value = notesStr, onValueChange = { notesStr = it }, label = { Text("Additional notes") }, modifier = Modifier.fillMaxWidth())
+                    DateTimePickerInline(context = context, timestamp = customTimestamp, onTimestampChange = { customTimestamp = it })
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { showDialog = false; editingRecord = null }) { Text("Cancel") }
                         Spacer(modifier = Modifier.width(8.dp))
-                        Button(
-                            onClick = {
-                                viewModel.addSymptom(symptomStr, severityStr, notesStr, if (useCustomTime) customTimestamp else System.currentTimeMillis())
-                                showDialog = false
-                                symptomStr = ""
-                                notesStr = ""
+                        Button(onClick = {
+                            val rec = editingRecord
+                            if (rec != null) {
+                                viewModel.updateSymptom(rec.copy(symptomName = symptomStr, severity = severityStr, notes = notesStr, timestamp = customTimestamp))
+                            } else {
+                                viewModel.addSymptom(symptomStr, severityStr, notesStr, customTimestamp)
                             }
-                        ) {
-                            Text("Save")
+                            showDialog = false; editingRecord = null
+                            symptomStr = ""; notesStr = ""
+                        }) {
+                            Text(if (editingRecord != null) "Update" else "Save")
                         }
                     }
                 }
@@ -1372,12 +1177,11 @@ fun SymptomDetailView(viewModel: HealthViewModel, lang: String) {
 fun SleepDetailView(viewModel: HealthViewModel, lang: String) {
     val records by viewModel.sleepRecords.collectAsState()
     var showDialog by remember { mutableStateOf(false) }
+    var editingRecord by remember { mutableStateOf<com.example.data.SleepRecord?>(null) }
 
     var hoursStr by remember { mutableStateOf("") }
     var notesStr by remember { mutableStateOf("") }
-
     var customTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
-    var useCustomTime by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -1388,23 +1192,18 @@ fun SleepDetailView(viewModel: HealthViewModel, lang: String) {
 
         Button(
             onClick = {
+                editingRecord = null; hoursStr = ""; notesStr = ""
                 customTimestamp = System.currentTimeMillis()
-                useCustomTime = false
                 showDialog = true
             },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
         ) {
             Text(LocalStrings.get("add_record", lang), color = SlateDarkBg, fontWeight = FontWeight.Bold)
         }
 
         LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .padding(horizontal = 16.dp),
+            modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(records) { record ->
@@ -1413,25 +1212,27 @@ fun SleepDetailView(viewModel: HealthViewModel, lang: String) {
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text("${record.hours} hours slept", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                            if (record.notes.isNotEmpty()) {
-                                Text(record.notes, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Text(
-                                text = viewModel.formatDate(record.timestamp),
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                            )
+                            if (record.notes.isNotEmpty()) { Text(record.notes, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            Text(viewModel.formatDate(record.timestamp), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                         }
-                        IconButton(onClick = { viewModel.deleteSleep(record) }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AlertRed)
+                        Row {
+                            IconButton(onClick = {
+                                editingRecord = record
+                                hoursStr = record.hours.toString(); notesStr = record.notes
+                                customTimestamp = record.timestamp
+                                showDialog = true
+                            }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = HighlightTeal)
+                            }
+                            IconButton(onClick = { viewModel.deleteSleep(record) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AlertRed)
+                            }
                         }
                     }
                 }
@@ -1440,72 +1241,31 @@ fun SleepDetailView(viewModel: HealthViewModel, lang: String) {
     }
 
     if (showDialog) {
-        Dialog(onDismissRequest = { showDialog = false }) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                shape = RoundedCornerShape(16.dp)
-            ) {
+        Dialog(onDismissRequest = { showDialog = false; editingRecord = null }) {
+            Card(modifier = Modifier.fillMaxWidth().padding(16.dp), shape = RoundedCornerShape(16.dp)) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Log Sleep", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    OutlinedTextField(
-                        value = hoursStr,
-                        onValueChange = { hoursStr = it },
-                        label = { Text("Hours slept") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = notesStr,
-                        onValueChange = { notesStr = it },
-                        label = { Text("Notes (e.g. felt deep rested / interrupted)") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Checkbox(
-                            checked = useCustomTime,
-                            onCheckedChange = { useCustomTime = it },
-                            colors = CheckboxDefaults.colors(checkedColor = HighlightTeal)
-                        )
-                        Text("Customize date & time (for past records)", fontSize = 13.sp)
-                    }
-
-                    if (useCustomTime) {
-                        DateTimePickerInline(
-                            context = context,
-                            timestamp = customTimestamp,
-                            onTimestampChange = { customTimestamp = it }
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        TextButton(onClick = { showDialog = false }) { Text("Cancel") }
+                    Text(if (editingRecord != null) "Edit Sleep" else "Log Sleep", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    OutlinedTextField(value = hoursStr, onValueChange = { hoursStr = it }, label = { Text("Hours slept") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = notesStr, onValueChange = { notesStr = it }, label = { Text("Notes (e.g. felt deep rested / interrupted)") }, modifier = Modifier.fillMaxWidth())
+                    DateTimePickerInline(context = context, timestamp = customTimestamp, onTimestampChange = { customTimestamp = it })
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { showDialog = false; editingRecord = null }) { Text("Cancel") }
                         Spacer(modifier = Modifier.width(8.dp))
-                        Button(
-                            onClick = {
-                                val h = hoursStr.toFloatOrNull() ?: 8.0f
-                                viewModel.addSleep(h, notesStr, if (useCustomTime) customTimestamp else System.currentTimeMillis())
-                                showDialog = false
-                                hoursStr = ""
-                                notesStr = ""
+                        Button(onClick = {
+                            val h = hoursStr.toFloatOrNull() ?: 8.0f
+                            val rec = editingRecord
+                            if (rec != null) {
+                                viewModel.updateSleep(rec.copy(hours = h, notes = notesStr, timestamp = customTimestamp))
+                            } else {
+                                viewModel.addSleep(h, notesStr, customTimestamp)
                             }
-                        ) {
-                            Text("Save")
+                            showDialog = false; editingRecord = null
+                            hoursStr = ""; notesStr = ""
+                        }) {
+                            Text(if (editingRecord != null) "Update" else "Save")
                         }
                     }
                 }
@@ -1518,36 +1278,30 @@ fun SleepDetailView(viewModel: HealthViewModel, lang: String) {
 fun LabResultDetailView(viewModel: HealthViewModel, lang: String) {
     val records by viewModel.labResults.collectAsState()
     var showDialog by remember { mutableStateOf(false) }
+    var editingRecord by remember { mutableStateOf<com.example.data.LabResultRecord?>(null) }
 
     var testNameStr by remember { mutableStateOf("") }
     var valueStr by remember { mutableStateOf("") }
     var unitStr by remember { mutableStateOf("mg/dL") }
     var refStr by remember { mutableStateOf("") }
-
     var customTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
-    var useCustomTime by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxSize()) {
         Button(
             onClick = {
+                editingRecord = null; testNameStr = ""; valueStr = ""; unitStr = "mg/dL"; refStr = ""
                 customTimestamp = System.currentTimeMillis()
-                useCustomTime = false
                 showDialog = true
             },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
         ) {
             Text(LocalStrings.get("add_record", lang), color = SlateDarkBg, fontWeight = FontWeight.Bold)
         }
 
         LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .padding(horizontal = 16.dp),
+            modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(records) { record ->
@@ -1556,25 +1310,30 @@ fun LabResultDetailView(viewModel: HealthViewModel, lang: String) {
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text("${record.testName}: ${record.value} ${record.unit}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                             if (record.referenceRange.isNotEmpty()) {
                                 Text("Ref Range: ${record.referenceRange}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            Text(
-                                text = viewModel.formatDate(record.timestamp),
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                            )
+                            Text(viewModel.formatDate(record.timestamp), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                         }
-                        IconButton(onClick = { viewModel.deleteLabResult(record) }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AlertRed)
+                        Row {
+                            IconButton(onClick = {
+                                editingRecord = record
+                                testNameStr = record.testName; valueStr = record.value.toString()
+                                unitStr = record.unit; refStr = record.referenceRange
+                                customTimestamp = record.timestamp
+                                showDialog = true
+                            }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = HighlightTeal)
+                            }
+                            IconButton(onClick = { viewModel.deleteLabResult(record) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AlertRed)
+                            }
                         }
                     }
                 }
@@ -1583,86 +1342,33 @@ fun LabResultDetailView(viewModel: HealthViewModel, lang: String) {
     }
 
     if (showDialog) {
-        Dialog(onDismissRequest = { showDialog = false }) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                shape = RoundedCornerShape(16.dp)
-            ) {
+        Dialog(onDismissRequest = { showDialog = false; editingRecord = null }) {
+            Card(modifier = Modifier.fillMaxWidth().padding(16.dp), shape = RoundedCornerShape(16.dp)) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Add Lab Result Record", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    OutlinedTextField(
-                        value = testNameStr,
-                        onValueChange = { testNameStr = it },
-                        label = { Text("Test Name (e.g. Cholesterol)") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = valueStr,
-                        onValueChange = { valueStr = it },
-                        label = { Text("Measurement Value") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = unitStr,
-                        onValueChange = { unitStr = it },
-                        label = { Text("Unit (e.g. mg/dL)") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = refStr,
-                        onValueChange = { refStr = it },
-                        label = { Text("Reference Range (e.g. < 200 mg/dL)") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Checkbox(
-                            checked = useCustomTime,
-                            onCheckedChange = { useCustomTime = it },
-                            colors = CheckboxDefaults.colors(checkedColor = HighlightTeal)
-                        )
-                        Text("Customize date & time (for past records)", fontSize = 13.sp)
-                    }
-
-                    if (useCustomTime) {
-                        DateTimePickerInline(
-                            context = context,
-                            timestamp = customTimestamp,
-                            onTimestampChange = { customTimestamp = it }
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        TextButton(onClick = { showDialog = false }) { Text("Cancel") }
+                    Text(if (editingRecord != null) "Edit Lab Result" else "Add Lab Result Record", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    OutlinedTextField(value = testNameStr, onValueChange = { testNameStr = it }, label = { Text("Test Name (e.g. Cholesterol)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = valueStr, onValueChange = { valueStr = it }, label = { Text("Measurement Value") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = unitStr, onValueChange = { unitStr = it }, label = { Text("Unit (e.g. mg/dL)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = refStr, onValueChange = { refStr = it }, label = { Text("Reference Range (e.g. < 200 mg/dL)") }, modifier = Modifier.fillMaxWidth())
+                    DateTimePickerInline(context = context, timestamp = customTimestamp, onTimestampChange = { customTimestamp = it })
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { showDialog = false; editingRecord = null }) { Text("Cancel") }
                         Spacer(modifier = Modifier.width(8.dp))
-                        Button(
-                            onClick = {
-                                val v = valueStr.toFloatOrNull() ?: 100f
-                                viewModel.addLabResult(testNameStr, v, unitStr, refStr, if (useCustomTime) customTimestamp else System.currentTimeMillis())
-                                showDialog = false
-                                testNameStr = ""
-                                valueStr = ""
-                                unitStr = "mg/dL"
-                                refStr = ""
+                        Button(onClick = {
+                            val v = valueStr.toFloatOrNull() ?: 100f
+                            val rec = editingRecord
+                            if (rec != null) {
+                                viewModel.updateLabResult(rec.copy(testName = testNameStr, value = v, unit = unitStr, referenceRange = refStr, timestamp = customTimestamp))
+                            } else {
+                                viewModel.addLabResult(testNameStr, v, unitStr, refStr, customTimestamp)
                             }
-                        ) {
-                            Text("Save")
+                            showDialog = false; editingRecord = null
+                            testNameStr = ""; valueStr = ""; unitStr = "mg/dL"; refStr = ""
+                        }) {
+                            Text(if (editingRecord != null) "Update" else "Save")
                         }
                     }
                 }
@@ -1671,7 +1377,7 @@ fun LabResultDetailView(viewModel: HealthViewModel, lang: String) {
     }
 }
 
-// Custom trend canvas chart representing health status changes cleanly
+// Single-series trend chart
 @Composable
 fun TrendLineChart(points: List<Float>, label: String) {
     if (points.size < 2) {
@@ -1716,34 +1422,94 @@ fun TrendLineChart(points: List<Float>, label: String) {
             points.forEachIndexed { i, p ->
                 val x = i * segmentWidth
                 val y = height - ((p - minVal) / range) * height
-                if (i == 0) {
-                    path.moveTo(x, y)
-                } else {
-                    path.lineTo(x, y)
-                }
+                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
             }
 
-            drawPath(
-                path = path,
-                color = HighlightTeal,
-                style = Stroke(width = 3.dp.toPx())
-            )
+            drawPath(path = path, color = HighlightTeal, style = Stroke(width = 3.dp.toPx()))
 
-            // Draw data dots
             points.forEachIndexed { i, p ->
                 val x = i * segmentWidth
                 val y = height - ((p - minVal) / range) * height
-                drawCircle(
-                    color = Color.White,
-                    radius = 4.dp.toPx(),
-                    center = Offset(x, y)
-                )
-                drawCircle(
-                    color = HighlightTeal,
-                    radius = 2.dp.toPx(),
-                    center = Offset(x, y)
-                )
+                drawCircle(color = Color.White, radius = 4.dp.toPx(), center = Offset(x, y))
+                drawCircle(color = HighlightTeal, radius = 2.dp.toPx(), center = Offset(x, y))
             }
+        }
+    }
+}
+
+// Dual-series trend chart for records with two related values (e.g. systolic/diastolic BP)
+@Composable
+fun DualTrendLineChart(
+    points1: List<Float>,
+    label1: String,
+    points2: List<Float>,
+    label2: String,
+    color1: Color = HighlightTeal,
+    color2: Color = AlertRed
+) {
+    if (points1.size < 2) {
+        Card(
+            modifier = Modifier.fillMaxWidth().height(130.dp).padding(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Needs at least 2 logs to draw chart", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        return
+    }
+
+    val allValues = points1 + points2
+    val maxVal = allValues.maxOrNull() ?: 1f
+    val minVal = allValues.minOrNull() ?: 0f
+    val range = if (maxVal == minVal) 1f else maxVal - minVal
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
+            .padding(16.dp)
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color1))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(label1, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color1)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color2))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(label2, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color2)
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Canvas(modifier = Modifier.fillMaxWidth().height(80.dp)) {
+            val width = size.width
+            val height = size.height
+            val count = maxOf(points1.size, points2.size)
+            val segW = if (count > 1) width / (count - 1) else width
+
+            fun drawSeries(pts: List<Float>, seriesColor: Color) {
+                if (pts.size < 2) return
+                val path = Path()
+                pts.forEachIndexed { i, p ->
+                    val x = i * segW
+                    val y = height - ((p - minVal) / range) * height
+                    if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+                drawPath(path, seriesColor, style = Stroke(width = 3.dp.toPx()))
+                pts.forEachIndexed { i, p ->
+                    val x = i * segW
+                    val y = height - ((p - minVal) / range) * height
+                    drawCircle(Color.White, radius = 4.dp.toPx(), center = Offset(x, y))
+                    drawCircle(seriesColor, radius = 2.dp.toPx(), center = Offset(x, y))
+                }
+            }
+
+            drawSeries(points1, color1)
+            drawSeries(points2, color2)
         }
     }
 }
@@ -2563,11 +2329,18 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
     ) { uri: Uri? ->
         if (uri != null) {
             viewModel.importLocalBackup(context, uri) { success, msg ->
-                importStatusMessage = if (success) {
-                    "Restore successful: All medical entries have been imported!"
-                } else {
-                    "Restore failed: $msg"
-                }
+                importStatusMessage = if (success) "Restore successful: All medical entries have been imported!" else "Restore failed: $msg"
+                showImportStatus = true
+            }
+        }
+    }
+
+    val localBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri: Uri? ->
+        if (uri != null) {
+            viewModel.writeLocalBackupToUri(context, uri) { success, msg ->
+                importStatusMessage = if (success) "Backup saved successfully!" else "Backup failed: $msg"
                 showImportStatus = true
             }
         }
@@ -2740,7 +2513,7 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
             }
         }
 
-        // Share Reports Export Section in prompt requirements
+        // Export Data Section
         item {
             Text(trans("export_data"), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = HighlightTeal)
             Row(
@@ -2750,6 +2523,7 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                 Button(onClick = { viewModel.exportData(context, "TXT") }, modifier = Modifier.weight(1f)) { Text("TXT", fontSize = 11.sp) }
                 Button(onClick = { viewModel.exportData(context, "CSV") }, modifier = Modifier.weight(1f)) { Text("CSV", fontSize = 11.sp) }
                 Button(onClick = { viewModel.exportData(context, "JSON") }, modifier = Modifier.weight(1f)) { Text("JSON", fontSize = 11.sp) }
+                Button(onClick = { viewModel.printPDFReport(context) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)) { Text("PDF", fontSize = 11.sp) }
             }
         }
 
@@ -2814,7 +2588,7 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Button(
-                                onClick = { viewModel.backupLocally(context) },
+                                onClick = { localBackupLauncher.launch("MyMedicalJournal_backup_${System.currentTimeMillis()}.json") },
                                 colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal),
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                                 modifier = Modifier.weight(1f)
@@ -2927,6 +2701,8 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                                                         userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36"
                                                     }
                                                     webViewClient = object : WebViewClient() {
+                                                        private var authCodeHandled = false
+
                                                         override fun shouldOverrideUrlLoading(
                                                             view: WebView?,
                                                             request: WebResourceRequest?
@@ -2934,29 +2710,17 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                                                             val url = request?.url?.toString() ?: ""
                                                             if (url.startsWith("http://localhost")) {
                                                                 val code = request?.url?.getQueryParameter("code")
-                                                                if (code != null) {
+                                                                if (code != null && !authCodeHandled) {
+                                                                    authCodeHandled = true
                                                                     showGoogleAuthWebView = false
-                                                                    viewModel.completeGoogleSignIn(code) { success, msg -> }
+                                                                    viewModel.completeGoogleSignIn(code) { success, msg ->
+                                                                        importStatusMessage = if (success) "Google account connected! You can now sync to Drive." else "Sign-in failed: $msg"
+                                                                        showImportStatus = true
+                                                                    }
                                                                 }
                                                                 return true
                                                             }
                                                             return false
-                                                        }
-
-                                                        override fun onPageStarted(
-                                                            view: WebView?,
-                                                            url: String?,
-                                                            favicon: android.graphics.Bitmap?
-                                                        ) {
-                                                            super.onPageStarted(view, url, favicon)
-                                                            if (url != null && url.startsWith("http://localhost")) {
-                                                                val uri = Uri.parse(url)
-                                                                val code = uri.getQueryParameter("code")
-                                                                if (code != null) {
-                                                                    showGoogleAuthWebView = false
-                                                                    viewModel.completeGoogleSignIn(code) { success, msg -> }
-                                                                }
-                                                            }
                                                         }
                                                     }
                                                     loadUrl(authUrl)
