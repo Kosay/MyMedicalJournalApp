@@ -1833,17 +1833,43 @@ fun DocumentAttachmentsView(viewModel: HealthViewModel, lang: String) {
         }
     )
 
+    val pdfPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+        onResult = { uri ->
+            if (uri != null) {
+                try {
+                    val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    context.contentResolver.takePersistableUriPermission(uri, takeFlags)
+                } catch (e: Exception) {}
+                selectedUri = uri
+                showDialog = true
+            }
+        }
+    )
+
     Column(modifier = Modifier.fillMaxSize()) {
-        Button(
-            onClick = {
-                pickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-            },
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(LocalStrings.get("select_image", lang), color = SlateDarkBg, fontWeight = FontWeight.Bold)
+            Button(
+                onClick = {
+                    pickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
+            ) {
+                Text(LocalStrings.get("select_image", lang), color = SlateDarkBg, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
+            Button(
+                onClick = { pdfPickerLauncher.launch(arrayOf("application/pdf")) },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
+            ) {
+                Text("Select PDF", color = SlateDarkBg, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
         }
 
         if (list.isEmpty()) {
@@ -1866,15 +1892,37 @@ fun DocumentAttachmentsView(viewModel: HealthViewModel, lang: String) {
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
                         Column(modifier = Modifier.fillMaxSize()) {
-                            AsyncImage(
-                                model = r.fileUri,
-                                contentDescription = r.title,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(110.dp)
-                                    .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
-                                    .background(Color.Black)
-                            )
+                            val isPdf = remember(r.fileUri) {
+                                r.fileUri.endsWith(".pdf", ignoreCase = true) ||
+                                    context.contentResolver.getType(Uri.parse(r.fileUri)) == "application/pdf"
+                            }
+                            if (isPdf) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(110.dp)
+                                        .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+                                        .background(Color.Black),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.PictureAsPdf,
+                                        contentDescription = r.title,
+                                        tint = AlertRed,
+                                        modifier = Modifier.size(48.dp)
+                                    )
+                                }
+                            } else {
+                                AsyncImage(
+                                    model = r.fileUri,
+                                    contentDescription = r.title,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(110.dp)
+                                        .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+                                        .background(Color.Black)
+                                )
+                            }
                             Spacer(modifier = Modifier.height(4.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
