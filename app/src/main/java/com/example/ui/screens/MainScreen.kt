@@ -2527,6 +2527,55 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
             }
         }
 
+        // Export for Doctor (DataDoctorPro-compatible CSV)
+        item {
+            Text("Export for Doctor", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = HighlightTeal)
+
+            val lastDoctorExportTime by viewModel.lastDoctorExportTime.collectAsState()
+
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                colors = CardDefaults.cardColors(containerColor = SlateCardBg),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Share a CSV of your Blood Pressure, Blood Sugar, Weight, Sleep, Symptom and Lab Result records with your doctor (e.g. for import into DataDoctorPro).",
+                        fontSize = 11.sp,
+                        color = Color.White.copy(alpha = 0.6f)
+                    )
+                    Text(
+                        text = if (lastDoctorExportTime > 0L) "Last sent: ${viewModel.formatDate(lastDoctorExportTime)}" else "Last sent: Never",
+                        fontSize = 11.sp,
+                        color = Color.White.copy(alpha = 0.5f)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(onClick = { viewModel.exportForDoctor(context, "last30") }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)) {
+                            Text("30 Days", fontSize = 10.sp)
+                        }
+                        OutlinedButton(onClick = { viewModel.exportForDoctor(context, "last90") }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)) {
+                            Text("90 Days", fontSize = 10.sp)
+                        }
+                        OutlinedButton(onClick = { viewModel.exportForDoctor(context, "all") }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)) {
+                            Text("All Time", fontSize = 10.sp)
+                        }
+                    }
+                    Button(
+                        onClick = { viewModel.exportForDoctor(context, "sinceLast") },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp), tint = SlateDarkBg)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Send New Records Since Last Export", color = SlateDarkBg, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+
         // WhatsApp-Style Backup & Sync Center
         item {
             Text("Backup & Sync (WhatsApp Style)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = HighlightTeal)
@@ -2641,7 +2690,40 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                         val manualDriveToken by viewModel.manualDriveToken.collectAsState()
 
                         var showGoogleAuthWebView by remember { mutableStateOf(false) }
+                        var showOAuthSetupDialog by remember { mutableStateOf(false) }
                         var isAdvancedOptionsExpanded by remember { mutableStateOf(false) }
+
+                        if (showOAuthSetupDialog) {
+                            AlertDialog(
+                                onDismissRequest = { showOAuthSetupDialog = false },
+                                title = { Text("Google Sign-In Setup Required") },
+                                text = {
+                                    Column {
+                                        Text(
+                                            "The built-in Google Client ID is just a placeholder and isn't registered with Google, " +
+                                            "so sign-in fails with \"Error 401: invalid_client\".\n\n" +
+                                            "To enable Google Drive backup, create your own free OAuth Client ID:\n\n" +
+                                            "1. Go to console.cloud.google.com and create (or select) a project.\n" +
+                                            "2. Enable the \"Google Drive API\".\n" +
+                                            "3. Go to \"APIs & Services\" > \"Credentials\" > \"Create Credentials\" > \"OAuth client ID\".\n" +
+                                            "4. Choose \"Web application\".\n" +
+                                            "5. Under \"Authorized redirect URIs\", add: http://localhost\n" +
+                                            "6. Copy the generated Client ID and paste it below in \"Advanced Drive Settings\" > \"Private OAuth Web Client ID (PKCE)\".",
+                                            fontSize = 13.sp
+                                        )
+                                    }
+                                },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        isAdvancedOptionsExpanded = true
+                                        showOAuthSetupDialog = false
+                                    }) { Text("Open Advanced Settings") }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showOAuthSetupDialog = false }) { Text("Close") }
+                                }
+                            )
+                        }
 
                         if (showGoogleAuthWebView) {
                             val authUrl = remember { viewModel.getGoogleAuthUrl() }
@@ -2722,6 +2804,19 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                                                             }
                                                             return false
                                                         }
+
+                                                        override fun onPageFinished(view: WebView?, url: String?) {
+                                                            super.onPageFinished(view, url)
+                                                            if (authCodeHandled) return
+                                                            view?.evaluateJavascript(
+                                                                "document.body ? document.body.innerText.includes('invalid_client') : false"
+                                                            ) { result ->
+                                                                if (result == "true") {
+                                                                    showGoogleAuthWebView = false
+                                                                    showOAuthSetupDialog = true
+                                                                }
+                                                            }
+                                                        }
                                                     }
                                                     loadUrl(authUrl)
                                                 }
@@ -2783,7 +2878,13 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                             }
                         } else {
                             Button(
-                                onClick = { showGoogleAuthWebView = true },
+                                onClick = {
+                                    if (viewModel.isUsingPlaceholderClientId()) {
+                                        showOAuthSetupDialog = true
+                                    } else {
+                                        showGoogleAuthWebView = true
+                                    }
+                                },
                                 modifier = Modifier.fillMaxWidth().height(42.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color.White),
                                 shape = RoundedCornerShape(8.dp),

@@ -74,12 +74,24 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         sharedPrefs.edit().putString("manual_drive_token", token).apply()
     }
 
-    private val _googleClientId = MutableStateFlow(sharedPrefs.getString("google_client_id", "1046908332468-bgcrp7ve4776u26j5it93fef6n6hco2q.apps.googleusercontent.com") ?: "1046908332468-bgcrp7ve4776u26j5it93fef6n6hco2q.apps.googleusercontent.com")
+    private val _googleClientId = MutableStateFlow(sharedPrefs.getString("google_client_id", DEFAULT_GOOGLE_CLIENT_ID) ?: DEFAULT_GOOGLE_CLIENT_ID)
     val googleClientId: StateFlow<String> = _googleClientId.asStateFlow()
 
     fun updateGoogleClientId(clientId: String) {
         _googleClientId.value = clientId
         sharedPrefs.edit().putString("google_client_id", clientId).apply()
+    }
+
+    // The bundled default Client ID is a placeholder and is not registered with any
+    // Google Cloud project, so Google always returns "Error 401: invalid_client" for it.
+    // Users must create their own OAuth Web Application Client ID to use Drive sync.
+    fun isUsingPlaceholderClientId(): Boolean {
+        val current = _googleClientId.value.trim()
+        return current.isEmpty() || current == DEFAULT_GOOGLE_CLIENT_ID
+    }
+
+    companion object {
+        const val DEFAULT_GOOGLE_CLIENT_ID = "1046908332468-bgcrp7ve4776u26j5it93fef6n6hco2q.apps.googleusercontent.com"
     }
 
     private val _googleAccountEmail = MutableStateFlow(sharedPrefs.getString("google_account_email", "") ?: "")
@@ -132,6 +144,9 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _lastDriveBackupTime = MutableStateFlow(sharedPrefs.getLong("last_drive_backup_time", 0L))
     val lastDriveBackupTime: StateFlow<Long> = _lastDriveBackupTime.asStateFlow()
+
+    private val _lastDoctorExportTime = MutableStateFlow(sharedPrefs.getLong("last_doctor_export_time", 0L))
+    val lastDoctorExportTime: StateFlow<Long> = _lastDoctorExportTime.asStateFlow()
 
     private val _googleDriveSyncStatus = MutableStateFlow("Not Connected")
     val googleDriveSyncStatus: StateFlow<String> = _googleDriveSyncStatus.asStateFlow()
@@ -675,7 +690,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun generateHTMLContent(): String {
+    fun generateHTMLContent(context: Context): String {
         val html = java.lang.StringBuilder()
         html.append("<!DOCTYPE html><html><head><meta charset='utf-8'><title>Health Record Summary</title><style>")
         html.append("body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1E293B; background-color: #FFFFFF; padding: 30px; margin: 0; line-height: 1.5; }")
@@ -861,15 +876,73 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
             html.append("</div>")
         }
 
+        html.append(attachmentsHtmlSection(context))
+
         html.append("<div class='footer'>Disclaimer: Generated securely by Patient Medical Journal App. This document is intended as a clinical summaries ledger and does not replace professional diagnostic opinion or counsel.</div>")
         html.append("</body></html>")
         return html.toString()
     }
 
-    fun printPDFReport(context: Context) {
-        viewModelScope.launch(Dispatchers.Main) {
+    // Embeds attached images and PDFs (e.g. lab test reports) as inline images so they
+    // appear as extra pages when this report is printed/saved to a single PDF.
+    private fun attachmentsHtmlSection(context: Context): String {
+        val items = attachments.value
+        if (items.isEmpty()) return ""
+
+        val sb = StringBuilder()
+        sb.append("<div class='section-card' style='page-break-before: always;'>")
+        sb.append("<div class='section-title'>Attached Lab Documents & Images</div>")
+        items.forEach { att ->
             try {
-                val htmlContent = generateHTMLContent()
+                val uri = Uri.parse(att.fileUri)
+                sb.append("<div style='margin-bottom:18px;'>")
+                sb.append("<p style='font-weight:600;font-size:13px;margin:4px 0;'>${att.title} <span style='color:#64748B;font-weight:400;'>(${formatDate(att.timestamp)})</span></p>")
+                if (att.notes.isNotEmpty()) {
+                    sb.append("<p style='font-size:12px;color:#64748B;margin:2px 0 6px 0;'>${att.notes}</p>")
+                }
+
+                val mimeType = context.contentResolver.getType(uri) ?: ""
+                if (mimeType == "application/pdf" || att.fileUri.endsWith(".pdf", ignoreCase = true)) {
+                    context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+                        val renderer = android.graphics.pdf.PdfRenderer(pfd)
+                        for (i in 0 until renderer.pageCount) {
+                            val page = renderer.openPage(i)
+                            val bitmap = android.graphics.Bitmap.createBitmap(
+                                page.width * 2, page.height * 2, android.graphics.Bitmap.Config.ARGB_8888
+                            )
+                            bitmap.eraseColor(android.graphics.Color.WHITE)
+                            page.render(bitmap, null, null, android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                            val baos = java.io.ByteArrayOutputStream()
+                            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 90, baos)
+                            val base64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
+                            sb.append("<img src='data:image/png;base64,$base64' style='width:100%;border:1px solid #E2E8F0;border-radius:4px;margin-bottom:8px;' />")
+                            page.close()
+                            bitmap.recycle()
+                        }
+                        renderer.close()
+                    }
+                } else {
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        val bytes = input.readBytes()
+                        val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                        sb.append("<img src='data:image/*;base64,$base64' style='max-width:100%;border:1px solid #E2E8F0;border-radius:4px;margin-bottom:8px;' />")
+                    }
+                }
+                sb.append("</div>")
+            } catch (e: Exception) {
+                Log.e("PDFAttach", "Failed to embed attachment '${att.title}': ${e.localizedMessage}")
+                sb.append("<p style='color:#991B1B;font-size:12px;'>Could not load attachment: ${att.title}</p>")
+                sb.append("</div>")
+            }
+        }
+        sb.append("</div>")
+        return sb.toString()
+    }
+
+    fun printPDFReport(context: Context) {
+        viewModelScope.launch {
+            try {
+                val htmlContent = withContext(Dispatchers.IO) { generateHTMLContent(context) }
                 val webView = android.webkit.WebView(context)
                 webView.webViewClient = object : android.webkit.WebViewClient() {
                     override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
@@ -897,7 +970,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
     fun shareHTMLReport(context: Context) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val html = generateHTMLContent()
+                val html = generateHTMLContent(context)
 
                 val filename = "medical_journal_report_${System.currentTimeMillis()}.html"
                 val cacheFile = File(context.cacheDir, filename)
@@ -1001,6 +1074,89 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
             s.append("LabResult,${formatDate(it.timestamp)},${csvField(it.testName)},${it.value},,${csvField(it.unit)},${csvField(it.referenceRange)}\n")
         }
         return s.toString()
+    }
+
+    // Converts a blood sugar reading to mg/dL so the value is unambiguous for clinics
+    // that default to mg/dL (e.g. DataDoctorPro stores it as a plain string with no unit).
+    private fun normalizeBloodSugarToMgDl(value: Float, unit: String): Float {
+        return if (unit.equals("mmol/L", ignoreCase = true)) value * 18.0182f else value
+    }
+
+    // Builds a CSV scoped to the date range and to the record categories DataDoctorPro's
+    // "Import Journal Data" dialog understands (BloodPressure, BloodSugar, Weight, Sleep),
+    // plus Symptom/LabResult rows which are forward-compatible and safely ignored today.
+    private fun generateDoctorCSV(startTime: Long, endTime: Long): String {
+        val s = StringBuilder()
+        s.append("Category,Date_Time,Value1,Value2,Value3,Unit,Notes\n")
+        bloodPressureRecords.value.filter { it.timestamp in startTime..endTime }.forEach {
+            s.append("BloodPressure,${formatDate(it.timestamp)},${it.systolic},${it.diastolic},${it.heartRate},mmHg,${csvField(it.notes)}\n")
+        }
+        bloodSugarRecords.value.filter { it.timestamp in startTime..endTime }.forEach {
+            val mgDl = normalizeBloodSugarToMgDl(it.value, it.unit)
+            val valueStr = if (mgDl == mgDl.toInt().toFloat()) mgDl.toInt().toString() else String.format(Locale.US, "%.1f", mgDl)
+            s.append("BloodSugar,${formatDate(it.timestamp)},$valueStr,${csvField(it.category)},,mg/dL,${csvField(it.notes)}\n")
+        }
+        weightRecords.value.filter { it.timestamp in startTime..endTime }.forEach {
+            s.append("Weight,${formatDate(it.timestamp)},${it.weightKg},,,kg,${csvField(it.notes)}\n")
+        }
+        sleepRecords.value.filter { it.timestamp in startTime..endTime }.forEach {
+            s.append("Sleep,${formatDate(it.timestamp)},${it.hours},,,hours,${csvField(it.notes)}\n")
+        }
+        symptoms.value.filter { it.timestamp in startTime..endTime }.forEach {
+            s.append("Symptom,${formatDate(it.timestamp)},${csvField(it.symptomName)},${csvField(it.severity)},,,${csvField(it.notes)}\n")
+        }
+        labResults.value.filter { it.timestamp in startTime..endTime }.forEach {
+            s.append("LabResult,${formatDate(it.timestamp)},${csvField(it.testName)},${it.value},,${csvField(it.unit)},${csvField(it.referenceRange)}\n")
+        }
+        return s.toString()
+    }
+
+    // rangeOption: "last30", "last90", "all", "sinceLast"
+    fun exportForDoctor(context: Context, rangeOption: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val now = System.currentTimeMillis()
+                val day = 24L * 60L * 60L * 1000L
+                val startTime = when (rangeOption) {
+                    "last30" -> now - (30 * day)
+                    "last90" -> now - (90 * day)
+                    "sinceLast" -> _lastDoctorExportTime.value
+                    else -> 0L
+                }
+
+                val csv = generateDoctorCSV(startTime, now)
+
+                val filename = "DoctorExport_${System.currentTimeMillis()}.csv"
+                val cacheFile = File(context.cacheDir, filename)
+                cacheFile.writeText(csv)
+
+                val uri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    cacheFile
+                )
+
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/csv"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    putExtra(Intent.EXTRA_SUBJECT, "Health Records for Doctor")
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+
+                val chooserIntent = Intent.createChooser(intent, "Send to Doctor via...").apply {
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+
+                _lastDoctorExportTime.value = now
+                sharedPrefs.edit().putLong("last_doctor_export_time", now).apply()
+
+                withContext(Dispatchers.Main) {
+                    context.startActivity(chooserIntent)
+                }
+            } catch (e: Exception) {
+                Log.e("DoctorExport", "Error exporting for doctor: ${e.localizedMessage}")
+            }
+        }
     }
 
     private fun generateJSON(): String {
