@@ -2294,6 +2294,16 @@ fun HealthSummaryView(viewModel: HealthViewModel, lang: String) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Share HTML Report", color = HighlightTeal, fontWeight = FontWeight.Bold)
                 }
+
+                OutlinedButton(
+                    onClick = { viewModel.exportData(context, "CSV") },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = HighlightTeal)
+                ) {
+                    Icon(Icons.Default.GridOn, contentDescription = "Export CSV", tint = HighlightTeal)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Export CSV (Excel)", color = HighlightTeal, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }

@@ -1134,6 +1134,9 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         labResults.value.forEach {
             s.append("LabResult,${formatDate(it.timestamp)},${csvField(it.testName)},${it.value},,${csvField(it.unit)},${csvField(it.referenceRange)}\n")
         }
+        lifestyleRecords.value.forEach {
+            s.append("Lifestyle,${formatDate(it.timestamp)},${csvField(it.type)},${it.amount},,,\n")
+        }
         return s.toString()
     }
 
