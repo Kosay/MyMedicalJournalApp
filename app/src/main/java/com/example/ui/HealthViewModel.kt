@@ -139,6 +139,67 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
     val bloodSugarRecords: StateFlow<List<BloodSugarRecord>> = repository.allBloodSugar
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // --- Blood Pressure pattern analysis (sleep, smoking, activity correlation) ---
+    val bpCorrelationData: StateFlow<BpCorrelationData> = combine(
+        bloodPressureRecords, sleepRecords, lifestyleRecords
+    ) { bpList, sleepList, lifestyleList ->
+        val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+
+        val sleepByDay = sleepList.groupBy { dayFormat.format(Date(it.timestamp)) }
+            .mapValues { (_, recs) -> recs.sumOf { it.hours.toDouble() }.toFloat() }
+
+        val smokingByDay = lifestyleList.filter { it.type == "smoking" }
+            .groupBy { dayFormat.format(Date(it.timestamp)) }
+            .mapValues { (_, recs) -> recs.sumOf { it.amount.toDouble() }.toFloat() }
+
+        val exerciseByDay = lifestyleList.filter { it.type == "exercise" }
+            .groupBy { dayFormat.format(Date(it.timestamp)) }
+            .mapValues { (_, recs) -> recs.sumOf { it.amount.toDouble() }.toFloat() }
+
+        val sleepOrder = listOf("<6h", "6-10h", ">10h")
+        val smokingOrder = listOf("0-5", "6-10", "11-20", ">20")
+        val activityOrder = listOf("Active", "No Activity")
+
+        val sleepItems = mutableListOf<Pair<String, BloodPressureRecord>>()
+        val smokingItems = mutableListOf<Pair<String, BloodPressureRecord>>()
+        val activityItems = mutableListOf<Pair<String, BloodPressureRecord>>()
+        val sleepSmokingItems = mutableListOf<Pair<String, BloodPressureRecord>>()
+        val sleepActivityItems = mutableListOf<Pair<String, BloodPressureRecord>>()
+        val smokingActivityItems = mutableListOf<Pair<String, BloodPressureRecord>>()
+        val allThreeItems = mutableListOf<Pair<String, BloodPressureRecord>>()
+
+        for (bp in bpList) {
+            val dayKey = dayFormat.format(Date(bp.timestamp))
+            val sleepHours = sleepByDay[dayKey]
+            val smokingCount = smokingByDay[dayKey] ?: 0f
+            val exerciseMinutes = exerciseByDay[dayKey] ?: 0f
+
+            val smokingLabel = smokingBucketLabel(smokingCount)
+            val activityLabel = activityBucketLabel(exerciseMinutes)
+            smokingItems.add(smokingLabel to bp)
+            activityItems.add(activityLabel to bp)
+            smokingActivityItems.add("$smokingLabel + $activityLabel" to bp)
+
+            if (sleepHours != null) {
+                val sleepLabel = sleepBucketLabel(sleepHours)
+                sleepItems.add(sleepLabel to bp)
+                sleepSmokingItems.add("$sleepLabel + $smokingLabel" to bp)
+                sleepActivityItems.add("$sleepLabel + $activityLabel" to bp)
+                allThreeItems.add("$sleepLabel + $smokingLabel + $activityLabel" to bp)
+            }
+        }
+
+        BpCorrelationData(
+            bySleep = buildBpBuckets(sleepItems, sleepOrder),
+            bySmoking = buildBpBuckets(smokingItems, smokingOrder),
+            byActivity = buildBpBuckets(activityItems, activityOrder),
+            bySleepSmoking = buildBpBuckets(sleepSmokingItems, sleepOrder.flatMap { s -> smokingOrder.map { c -> "$s + $c" } }),
+            bySleepActivity = buildBpBuckets(sleepActivityItems, sleepOrder.flatMap { s -> activityOrder.map { a -> "$s + $a" } }),
+            bySmokingActivity = buildBpBuckets(smokingActivityItems, smokingOrder.flatMap { c -> activityOrder.map { a -> "$c + $a" } }),
+            byAllThree = buildBpBuckets(allThreeItems, sleepOrder.flatMap { s -> smokingOrder.flatMap { c -> activityOrder.map { a -> "$s + $c + $a" } } })
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), BpCorrelationData())
+
     private val _lastLocalBackupTime = MutableStateFlow(sharedPrefs.getLong("last_local_backup_time", 0L))
     val lastLocalBackupTime: StateFlow<Long> = _lastLocalBackupTime.asStateFlow()
 
@@ -1073,6 +1134,9 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         labResults.value.forEach {
             s.append("LabResult,${formatDate(it.timestamp)},${csvField(it.testName)},${it.value},,${csvField(it.unit)},${csvField(it.referenceRange)}\n")
         }
+        lifestyleRecords.value.forEach {
+            s.append("Lifestyle,${formatDate(it.timestamp)},${csvField(it.type)},${it.amount},,,\n")
+        }
         return s.toString()
     }
 
@@ -1908,6 +1972,56 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
             Log.e("Restore", "Failed to parse json backup", e)
             false
         }
+    }
+}
+
+data class BpCorrelationBucket(
+    val label: String,
+    val avgSystolic: Float,
+    val avgDiastolic: Float,
+    val count: Int
+)
+
+data class BpCorrelationData(
+    val bySleep: List<BpCorrelationBucket> = emptyList(),
+    val bySmoking: List<BpCorrelationBucket> = emptyList(),
+    val byActivity: List<BpCorrelationBucket> = emptyList(),
+    val bySleepSmoking: List<BpCorrelationBucket> = emptyList(),
+    val bySleepActivity: List<BpCorrelationBucket> = emptyList(),
+    val bySmokingActivity: List<BpCorrelationBucket> = emptyList(),
+    val byAllThree: List<BpCorrelationBucket> = emptyList()
+)
+
+private fun sleepBucketLabel(hours: Float): String = when {
+    hours < 6f -> "<6h"
+    hours <= 10f -> "6-10h"
+    else -> ">10h"
+}
+
+private fun smokingBucketLabel(cigarettes: Float): String = when {
+    cigarettes <= 5f -> "0-5"
+    cigarettes <= 10f -> "6-10"
+    cigarettes <= 20f -> "11-20"
+    else -> ">20"
+}
+
+private fun activityBucketLabel(exerciseMinutes: Float): String =
+    if (exerciseMinutes > 0f) "Active" else "No Activity"
+
+private fun buildBpBuckets(
+    items: List<Pair<String, BloodPressureRecord>>,
+    order: List<String>
+): List<BpCorrelationBucket> {
+    val grouped = items.groupBy({ it.first }, { it.second })
+    return order.mapNotNull { label ->
+        val recs = grouped[label]
+        if (recs.isNullOrEmpty()) return@mapNotNull null
+        BpCorrelationBucket(
+            label = label,
+            avgSystolic = recs.map { it.systolic }.average().toFloat(),
+            avgDiastolic = recs.map { it.diastolic }.average().toFloat(),
+            count = recs.size
+        )
     }
 }
 

@@ -527,8 +527,10 @@ fun TrackMenuItemCard(title: String, onClick: () -> Unit) {
 @Composable
 fun BpDetailView(viewModel: HealthViewModel, lang: String) {
     val records by viewModel.bloodPressureRecords.collectAsState()
+    val correlationData by viewModel.bpCorrelationData.collectAsState()
     var showDialog by remember { mutableStateOf(false) }
     var editingRecord by remember { mutableStateOf<com.example.data.BloodPressureRecord?>(null) }
+    var isPatternAnalysisExpanded by remember { mutableStateOf(false) }
 
     var systolicStr by remember { mutableStateOf("") }
     var diastolicStr by remember { mutableStateOf("") }
@@ -545,6 +547,45 @@ fun BpDetailView(viewModel: HealthViewModel, lang: String) {
                 points1 = systolicPoints, label1 = "Systolic",
                 points2 = diastolicPoints, label2 = "Diastolic"
             )
+        }
+
+        // Expandable pattern analysis section (sleep / smoking / activity correlation)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { isPatternAnalysisExpanded = !isPatternAnalysisExpanded }
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                "Pattern Analysis (Sleep, Smoking, Activity)",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Icon(
+                imageVector = if (isPatternAnalysisExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        if (isPatternAnalysisExpanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                BpCorrelationBarChart("Blood Pressure vs Sleep Duration", correlationData.bySleep)
+                BpCorrelationBarChart("Blood Pressure vs Smoking (cigarettes/day)", correlationData.bySmoking)
+                BpCorrelationBarChart("Blood Pressure vs Activity", correlationData.byActivity)
+                BpCorrelationBarChart("Sleep + Smoking", correlationData.bySleepSmoking)
+                BpCorrelationBarChart("Sleep + Activity", correlationData.bySleepActivity)
+                BpCorrelationBarChart("Smoking + Activity", correlationData.bySmokingActivity)
+                BpCorrelationBarChart("Sleep + Smoking + Activity", correlationData.byAllThree)
+            }
         }
 
         Button(
@@ -1514,6 +1555,82 @@ fun DualTrendLineChart(
     }
 }
 
+// Bar chart comparing average systolic/diastolic BP across lifestyle-pattern buckets
+@Composable
+fun BpCorrelationBarChart(
+    title: String,
+    buckets: List<com.example.ui.BpCorrelationBucket>,
+    color1: Color = HighlightTeal,
+    color2: Color = AlertRed
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
+            .padding(12.dp)
+    ) {
+        Text(title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+        Spacer(modifier = Modifier.height(4.dp))
+
+        if (buckets.isEmpty()) {
+            Box(modifier = Modifier.fillMaxWidth().height(40.dp), contentAlignment = Alignment.CenterStart) {
+                Text("Not enough data yet", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            return@Column
+        }
+
+        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color1))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Systolic", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = color1)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color2))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Diastolic", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = color2)
+            }
+        }
+
+        val maxVal = buckets.maxOf { it.avgSystolic }.coerceAtLeast(1f)
+
+        buckets.forEach { bucket ->
+            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                Text(
+                    "${bucket.label}  (n=${bucket.count})",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                // Systolic bar
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .height(8.dp)
+                            .fillMaxWidth(fraction = (bucket.avgSystolic / maxVal).coerceIn(0f, 1f))
+                            .background(color1, RoundedCornerShape(4.dp))
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("${bucket.avgSystolic.toInt()}", fontSize = 10.sp, color = color1)
+                }
+                Spacer(modifier = Modifier.height(2.dp))
+                // Diastolic bar
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .height(8.dp)
+                            .fillMaxWidth(fraction = (bucket.avgDiastolic / maxVal).coerceIn(0f, 1f))
+                            .background(color2, RoundedCornerShape(4.dp))
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("${bucket.avgDiastolic.toInt()}", fontSize = 10.sp, color = color2)
+                }
+            }
+        }
+    }
+}
+
 // ==========================================
 // 3. LIFESTYLE SCREEN (Minds Screenshot 4)
 // ==========================================
@@ -2176,6 +2293,16 @@ fun HealthSummaryView(viewModel: HealthViewModel, lang: String) {
                     Icon(Icons.Default.Share, contentDescription = "Share", tint = HighlightTeal)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Share HTML Report", color = HighlightTeal, fontWeight = FontWeight.Bold)
+                }
+
+                OutlinedButton(
+                    onClick = { viewModel.exportData(context, "CSV") },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = HighlightTeal)
+                ) {
+                    Icon(Icons.Default.GridOn, contentDescription = "Export CSV", tint = HighlightTeal)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Export CSV (Excel)", color = HighlightTeal, fontWeight = FontWeight.Bold)
                 }
             }
         }
