@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,7 +23,7 @@ import kotlinx.coroutines.launch
         EmergencyInfo::class,
         BloodSugarRecord::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -32,6 +33,13 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE emergency_info ADD COLUMN sex TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE emergency_info ADD COLUMN numberOfChildren INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -39,6 +47,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "medical_journal_database"
                 )
+                .addMigrations(MIGRATION_2_3)
                 .fallbackToDestructiveMigration()
                 .addCallback(DatabaseSeederCallback(context, scope))
                 .build()
@@ -104,7 +113,9 @@ abstract class AppDatabase : RoomDatabase() {
                             allergies = "Sulfonamides",
                             contactName = "Jane Doe (Spouse)",
                             contactPhone = "+1-555-0199",
-                            additionalNotes = "In emergency, please search wallet for donor card."
+                            additionalNotes = "In emergency, please search wallet for donor card.",
+                            sex = "Male",
+                            numberOfChildren = 0
                         )
                     )
 

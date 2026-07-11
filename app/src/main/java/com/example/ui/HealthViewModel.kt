@@ -449,7 +449,9 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         allergies: String,
         contactName: String,
         contactPhone: String,
-        additionalNotes: String
+        additionalNotes: String,
+        sex: String,
+        numberOfChildren: Int
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertEmergencyInfo(
@@ -460,7 +462,9 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                     allergies = allergies,
                     contactName = contactName,
                     contactPhone = contactPhone,
-                    additionalNotes = additionalNotes
+                    additionalNotes = additionalNotes,
+                    sex = sex,
+                    numberOfChildren = numberOfChildren
                 )
             )
         }
@@ -790,6 +794,9 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
             html.append("<div class='section-title'>Emergency Contact & Information</div>")
             html.append("<table>")
             html.append("<tr><td><strong>Full Name:</strong></td><td>${info.fullName}</td><td><strong>Blood Type:</strong></td><td><span class='badge badge-critical'>${info.bloodType}</span></td></tr>")
+            val sexLabel = if (info.sex.isNotEmpty()) info.sex else "Not specified"
+            val childrenLabel = if (info.sex == "Female") "${info.numberOfChildren}" else "N/A"
+            html.append("<tr><td><strong>Sex:</strong></td><td>$sexLabel</td><td><strong>Number of Children:</strong></td><td>$childrenLabel</td></tr>")
             html.append("<tr><td><strong>Chronic Conditions:</strong></td><td>${info.chronicConditions}</td><td><strong>Known Allergies:</strong></td><td>${info.allergies}</td></tr>")
             html.append("<tr><td><strong>Emergency Contact:</strong></td><td>${info.contactName}</td><td><strong>Contact Phone:</strong></td><td>${info.contactPhone}</td></tr>")
             if (info.additionalNotes.isNotEmpty()) {
@@ -1302,6 +1309,20 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
             })
         }
         root.put("lab_results", labArr)
+
+        emergencyInfo.value?.let { info ->
+            root.put("emergency_info", JSONObject().apply {
+                put("fullName", info.fullName)
+                put("bloodType", info.bloodType)
+                put("chronicConditions", info.chronicConditions)
+                put("allergies", info.allergies)
+                put("contactName", info.contactName)
+                put("contactPhone", info.contactPhone)
+                put("additionalNotes", info.additionalNotes)
+                put("sex", info.sex)
+                put("numberOfChildren", info.numberOfChildren)
+            })
+        }
 
         return root.toString(2)
     }
@@ -1962,7 +1983,9 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                         chronicConditions = obj.optString("chronicConditions"),
                         contactName = obj.optString("contactName"),
                         contactPhone = obj.optString("contactPhone"),
-                        additionalNotes = obj.optString("additionalNotes")
+                        additionalNotes = obj.optString("additionalNotes"),
+                        sex = obj.optString("sex"),
+                        numberOfChildren = obj.optInt("numberOfChildren", 0)
                     )
                 )
             }

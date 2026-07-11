@@ -2117,6 +2117,8 @@ fun EmergencyCardView(viewModel: HealthViewModel, lang: String) {
     var cName by remember { mutableStateOf("") }
     var cPhone by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
+    var sex by remember { mutableStateOf("") }
+    var childrenStr by remember { mutableStateOf("0") }
 
     LaunchedEffect(info) {
         info?.let {
@@ -2127,6 +2129,8 @@ fun EmergencyCardView(viewModel: HealthViewModel, lang: String) {
             cName = it.contactName
             cPhone = it.contactPhone
             notes = it.additionalNotes
+            sex = it.sex
+            childrenStr = it.numberOfChildren.toString()
         }
     }
 
@@ -2162,6 +2166,41 @@ fun EmergencyCardView(viewModel: HealthViewModel, lang: String) {
                 label = { Text(trans("blood_type")) },
                 modifier = Modifier.fillMaxWidth()
             )
+        }
+
+        item {
+            Text("Sex", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("Male", "Female").forEach { option ->
+                    val selected = sex == option
+                    OutlinedButton(
+                        onClick = { sex = option },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (selected) HighlightTeal.copy(alpha = 0.15f) else Color.Transparent,
+                            contentColor = if (selected) HighlightTeal else MaterialTheme.colorScheme.onSurface
+                        ),
+                        border = BorderStroke(
+                            1.5.dp,
+                            if (selected) HighlightTeal else MaterialTheme.colorScheme.outline
+                        )
+                    ) {
+                        Text(option, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
+                    }
+                }
+            }
+        }
+
+        if (sex == "Female") {
+            item {
+                OutlinedTextField(
+                    value = childrenStr,
+                    onValueChange = { if (it.all { c -> c.isDigit() }) childrenStr = it },
+                    label = { Text("Number of Children") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
 
         item {
@@ -2213,7 +2252,11 @@ fun EmergencyCardView(viewModel: HealthViewModel, lang: String) {
         item {
             Button(
                 onClick = {
-                    viewModel.saveEmergencyCard(name, blood, conditions, allergies, cName, cPhone, notes)
+                    viewModel.saveEmergencyCard(
+                        name, blood, conditions, allergies, cName, cPhone, notes,
+                        sex = sex,
+                        numberOfChildren = childrenStr.toIntOrNull() ?: 0
+                    )
                 },
                 modifier = Modifier
                     .fillMaxWidth()

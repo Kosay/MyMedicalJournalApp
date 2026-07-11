@@ -84,7 +84,9 @@ data class EmergencyInfo(
     val allergies: String = "",
     val contactName: String = "",
     val contactPhone: String = "",
-    val additionalNotes: String = ""
+    val additionalNotes: String = "",
+    val sex: String = "",           // "Male" or "Female"
+    val numberOfChildren: Int = 0
 )
 
 @Entity(tableName = "blood_sugar_records")
