@@ -34,6 +34,7 @@ class MainActivity : ComponentActivity() {
         val viewModel = ViewModelProvider(this, factory)[HealthViewModel::class.java]
 
         viewModel.scheduleDailyPatternCheck()
+        viewModel.scheduleMedicationReminder()
 
         setContent {
             val themeMode by viewModel.theme.collectAsState()

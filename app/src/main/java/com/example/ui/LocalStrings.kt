@@ -81,7 +81,17 @@ object LocalStrings {
             "value" to "Value",
             "unit" to "Unit",
             "hours" to "Hours",
-            "select_image" to "Attach Health Image"
+            "select_image" to "Attach Health Image",
+            "mood" to "Mood",
+            "mood_score" to "How are you feeling?",
+            "family_members" to "Family Members",
+            "weekly_summary" to "Weekly AI Summary",
+            "water_goal" to "Daily Water Goal",
+            "dose_log" to "Dose Log",
+            "mark_taken" to "Mark Taken",
+            "mark_skipped" to "Mark Skipped",
+            "relationship" to "Relationship",
+            "date_of_birth" to "Date of Birth"
         ),
         "ar" to mapOf(
             "dashboard" to "لوحة البيانات",
@@ -162,7 +172,17 @@ object LocalStrings {
             "value" to "القيمة",
             "unit" to "الوحدة",
             "hours" to "ساعات",
-            "select_image" to "إرفاق صورة طبية"
+            "select_image" to "إرفاق صورة طبية",
+            "mood" to "الحالة المزاجية",
+            "mood_score" to "كيف تشعر الآن؟",
+            "family_members" to "أفراد الأسرة",
+            "weekly_summary" to "ملخص أسبوعي بالذكاء الاصطناعي",
+            "water_goal" to "هدف الماء اليومي",
+            "dose_log" to "سجل الجرعات",
+            "mark_taken" to "تم أخذها",
+            "mark_skipped" to "تم التخطي",
+            "relationship" to "العلاقة",
+            "date_of_birth" to "تاريخ الميلاد"
         )
     )
 

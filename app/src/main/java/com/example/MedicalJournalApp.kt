@@ -37,11 +37,19 @@ class MedicalJournalApp : Application() {
                     NotificationManager.IMPORTANCE_DEFAULT
                 ).apply { description = "Unusual pattern alerts based on your health trends" }
             )
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_REMINDERS,
+                    "Medication Reminders",
+                    NotificationManager.IMPORTANCE_DEFAULT
+                ).apply { description = "Daily reminders to take your active medications" }
+            )
         }
     }
 
     companion object {
         const val CHANNEL_ALERTS = "health_alerts"
         const val CHANNEL_PATTERNS = "health_patterns"
+        const val CHANNEL_REMINDERS = "medication_reminders"
     }
 }

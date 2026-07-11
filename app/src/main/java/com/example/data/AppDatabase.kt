@@ -21,9 +21,12 @@ import kotlinx.coroutines.launch
         LifestyleRecord::class,
         AttachmentRecord::class,
         EmergencyInfo::class,
-        BloodSugarRecord::class
+        BloodSugarRecord::class,
+        MoodRecord::class,
+        MedicationDoseRecord::class,
+        FamilyMemberProfile::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -40,6 +43,14 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS mood_records (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, score INTEGER NOT NULL, notes TEXT NOT NULL DEFAULT '', timestamp INTEGER NOT NULL)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS medication_doses (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, medicationId INTEGER NOT NULL DEFAULT 0, medicationName TEXT NOT NULL, timestamp INTEGER NOT NULL, taken INTEGER NOT NULL DEFAULT 1, notes TEXT NOT NULL DEFAULT '')")
+                db.execSQL("CREATE TABLE IF NOT EXISTS family_members (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, relationship TEXT NOT NULL DEFAULT '', dateOfBirth TEXT NOT NULL DEFAULT '', bloodType TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '')")
+            }
+        }
+
         fun getDatabase(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -47,7 +58,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "medical_journal_database"
                 )
-                .addMigrations(MIGRATION_2_3)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
                 .fallbackToDestructiveMigration()
                 .addCallback(DatabaseSeederCallback(context, scope))
                 .build()

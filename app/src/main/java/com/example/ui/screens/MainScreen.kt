@@ -51,6 +51,9 @@ import com.example.ui.LocalStrings
 import com.example.ui.HealthViewModel
 import com.example.ui.DangerAlert
 import com.example.ui.DangerSeverity
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import com.example.ui.theme.*
 import java.util.*
 
@@ -1699,7 +1702,7 @@ fun BpCorrelationBarChart(
 // ==========================================
 // 3. LIFESTYLE SCREEN (Minds Screenshot 4)
 // ==========================================
-enum class LifeSection { NONE, SMOKING, WATER, EXERCISE }
+enum class LifeSection { NONE, SMOKING, WATER, EXERCISE, MOOD }
 
 @Composable
 fun LifestyleScreen(viewModel: HealthViewModel, lang: String) {
@@ -1743,6 +1746,20 @@ fun LifestyleScreen(viewModel: HealthViewModel, lang: String) {
                 )
             }
 
+            item {
+                val moodList by viewModel.moodRecords.collectAsState()
+                val todayMood = moodList.firstOrNull { isToday(it.timestamp) }
+                val moodEmoji = when(todayMood?.score) {
+                    1 -> "😢"; 2 -> "😕"; 3 -> "😐"; 4 -> "🙂"; 5 -> "😄"
+                    else -> null
+                }
+                LifestyleMenuButton(
+                    title = trans("mood"),
+                    subtitle = if (moodEmoji != null) "Today: $moodEmoji (${todayMood!!.score}/5)" else "Not logged today",
+                    onClick = { activeSub = LifeSection.MOOD }
+                )
+            }
+
             // High aesthetic match cyan "+250ml water" pill button!
             item {
                 Button(
@@ -1758,6 +1775,8 @@ fun LifestyleScreen(viewModel: HealthViewModel, lang: String) {
                 }
             }
         }
+    } else if (activeSub == LifeSection.MOOD) {
+        MoodDetailView(viewModel = viewModel, lang = lang, onBack = { activeSub = LifeSection.NONE })
     } else {
         // Detailed log list for selected category inside Lifestyle Tracker
         Column(modifier = Modifier.fillMaxSize()) {
@@ -1781,6 +1800,26 @@ fun LifestyleScreen(viewModel: HealthViewModel, lang: String) {
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
+            }
+
+            // Water goal progress bar
+            if (activeSub == LifeSection.WATER) {
+                val waterGoal by viewModel.waterGoalMl.collectAsState()
+                val waterToday2 = records.filter { it.type == "water" && isToday(it.timestamp) }.sumOf { it.amount.toDouble() }.toFloat()
+                val progress = (waterToday2 / waterGoal).coerceIn(0f, 1f)
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("${waterToday2.toInt()} ml", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = HighlightTeal)
+                        Text("Goal: ${waterGoal} ml", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    androidx.compose.material3.LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).height(8.dp).clip(RoundedCornerShape(4.dp)),
+                        color = HighlightTeal,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                    Text("${(progress * 100).toInt()}% of daily goal", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
 
             // Input Row
@@ -1865,6 +1904,100 @@ fun LifestyleScreen(viewModel: HealthViewModel, lang: String) {
 }
 
 @Composable
+fun MoodDetailView(viewModel: HealthViewModel, lang: String, onBack: () -> Unit) {
+    val records by viewModel.moodRecords.collectAsState()
+    var selectedScore by remember { mutableStateOf(3) }
+    var notesStr by remember { mutableStateOf("") }
+    val moodEmojis = listOf("😢", "😕", "😐", "🙂", "😄")
+    val moodLabels = listOf("Very Bad", "Bad", "Neutral", "Good", "Great")
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(modifier = Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onBackground)
+            }
+            Text("Mood Log", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+        }
+
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("How are you feeling?", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    moodEmojis.forEachIndexed { index, emoji ->
+                        val score = index + 1
+                        val isSelected = selectedScore == score
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isSelected) HighlightTeal.copy(alpha = 0.2f) else Color.Transparent)
+                                .clickable { selectedScore = score }
+                                .padding(8.dp)
+                        ) {
+                            Text(emoji, fontSize = 28.sp)
+                            Text(score.toString(), fontSize = 10.sp, color = if (isSelected) HighlightTeal else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+                Text(moodLabels[selectedScore - 1], fontSize = 13.sp, color = HighlightTeal, fontWeight = FontWeight.Medium, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                OutlinedTextField(
+                    value = notesStr,
+                    onValueChange = { notesStr = it },
+                    label = { Text("Notes (optional)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                Button(
+                    onClick = {
+                        viewModel.addMood(selectedScore, notesStr)
+                        notesStr = ""
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
+                ) {
+                    Text("Log Mood", color = SlateDarkBg, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(records) { r ->
+                val emoji = moodEmojis.getOrElse(r.score - 1) { "😐" }
+                val label = moodLabels.getOrElse(r.score - 1) { "Neutral" }
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(emoji, fontSize = 24.sp)
+                            Column {
+                                Text("$label (${r.score}/5)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                                if (r.notes.isNotEmpty()) Text(r.notes, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(viewModel.formatDate(r.timestamp), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                            }
+                        }
+                        IconButton(onClick = { viewModel.deleteMood(r) }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AlertRed)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun LifestyleMenuButton(
     title: String,
     subtitle: String,
@@ -1905,7 +2038,7 @@ fun isToday(timestamp: Long): Boolean {
 // ==========================================
 // 4. MORE SCREEN (Minds Screenshot 2)
 // ==========================================
-enum class MoreSection { NONE, ATTACHMENTS, EMERGENCY, SUMMARY, SEARCH, AI_ASSISTANT }
+enum class MoreSection { NONE, ATTACHMENTS, EMERGENCY, SUMMARY, SEARCH, AI_ASSISTANT, FAMILY }
 
 @Composable
 fun MoreScreen(viewModel: HealthViewModel, lang: String) {
@@ -1922,6 +2055,7 @@ fun MoreScreen(viewModel: HealthViewModel, lang: String) {
             val sections = listOf(
                 Pair("attachments", MoreSection.ATTACHMENTS),
                 Pair("emergency_info", MoreSection.EMERGENCY),
+                Pair("family_members", MoreSection.FAMILY),
                 Pair("health_summary", MoreSection.SUMMARY),
                 Pair("search", MoreSection.SEARCH),
                 Pair("ai_health_assistant", MoreSection.AI_ASSISTANT)
@@ -1965,6 +2099,7 @@ fun MoreScreen(viewModel: HealthViewModel, lang: String) {
                 val titleString = when(activeSub) {
                     MoreSection.ATTACHMENTS -> trans("attachments")
                     MoreSection.EMERGENCY -> trans("emergency_info")
+                    MoreSection.FAMILY -> trans("family_members")
                     MoreSection.SUMMARY -> trans("health_summary")
                     MoreSection.SEARCH -> trans("search")
                     else -> trans("ai_health_assistant")
@@ -1976,6 +2111,7 @@ fun MoreScreen(viewModel: HealthViewModel, lang: String) {
                 when(activeSub) {
                     MoreSection.ATTACHMENTS -> DocumentAttachmentsView(viewModel, lang)
                     MoreSection.EMERGENCY -> EmergencyCardView(viewModel, lang)
+                    MoreSection.FAMILY -> FamilyMembersView(viewModel, lang)
                     MoreSection.SUMMARY -> HealthSummaryView(viewModel, lang)
                     MoreSection.SEARCH -> SearchJournalView(viewModel, lang)
                     MoreSection.AI_ASSISTANT -> AIHealthAssistantView(viewModel, lang)
@@ -2509,77 +2645,210 @@ fun SearchMatchRow(title: String, text: String, date: String) {
 
 // AI Health Assistant View (Supports Gemini, OpenAI, DeepSeek per settings selection!)
 @Composable
-fun AIHealthAssistantView(viewModel: HealthViewModel, lang: String) {
-    val response by viewModel.aiResponse.collectAsState()
-    val loading by viewModel.aiLoading.collectAsState()
-    val key by viewModel.apiKey.collectAsState()
-    val provider by viewModel.aiProvider.collectAsState()
+fun FamilyMembersView(viewModel: HealthViewModel, lang: String) {
+    val members by viewModel.familyMembers.collectAsState()
+    var showDialog by remember { mutableStateOf(false) }
+    var editingMember by remember { mutableStateOf<com.example.data.FamilyMemberProfile?>(null) }
+    var nameStr by remember { mutableStateOf("") }
+    var relStr by remember { mutableStateOf("") }
+    var dobStr by remember { mutableStateOf("") }
+    var bloodStr by remember { mutableStateOf("") }
+    var notesStr by remember { mutableStateOf("") }
 
-    var userQueryInput by remember { mutableStateOf("") }
-
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Card(
-            modifier = Modifier.fillMaxWidth().weight(1f),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    Column(modifier = Modifier.fillMaxSize()) {
+        Button(
+            onClick = {
+                editingMember = null
+                nameStr = ""; relStr = ""; dobStr = ""; bloodStr = ""; notesStr = ""
+                showDialog = true
+            },
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
         ) {
-            Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                if (loading) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = HighlightTeal)
-                } else {
-                    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                        Text(
-                            text = if (provider.isNotEmpty()) "Assistant Powered By $provider" else "Health GPT Assistant",
-                            fontWeight = FontWeight.Black,
-                            fontSize = 12.sp,
-                            color = HighlightTeal,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                        
-                        if (response.isEmpty()) {
-                            Text(
-                                text = "Ask anything about your health records, metrics, trend indicators or suggest health tips.\n\n" +
-                                       "Sample Prompts:\n" +
-                                       "• \"What does my latest Blood Pressure reading indicate?\"\n" +
-                                       "• \"What is my dynamic BMI and how can I bring it to normal range?\"\n" +
-                                       "• \"Analyze my lipid logs (cholesterol & triglycerides).\"",
-                                fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        } else {
-                            Text(
-                                text = response,
-                                fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+            Text("Add Family Member", color = SlateDarkBg, fontWeight = FontWeight.Bold)
+        }
+
+        if (members.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No family members yet.\nTap + to add one.", textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(members) { m ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    ) {
+                        Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(m.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                                if (m.relationship.isNotEmpty()) Text(m.relationship, fontSize = 13.sp, color = HighlightTeal)
+                                if (m.dateOfBirth.isNotEmpty()) Text("DOB: ${m.dateOfBirth}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (m.bloodType.isNotEmpty()) Text("Blood: ${m.bloodType}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (m.notes.isNotEmpty()) Text(m.notes, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f))
+                            }
+                            Row {
+                                IconButton(onClick = {
+                                    editingMember = m
+                                    nameStr = m.name; relStr = m.relationship; dobStr = m.dateOfBirth
+                                    bloodStr = m.bloodType; notesStr = m.notes
+                                    showDialog = true
+                                }) {
+                                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = HighlightTeal)
+                                }
+                                IconButton(onClick = { viewModel.deleteFamilyMember(m) }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AlertRed)
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+    }
 
-        Spacer(modifier = Modifier.height(12.dp))
+    if (showDialog) {
+        Dialog(onDismissRequest = { showDialog = false; editingMember = null }) {
+            Card(modifier = Modifier.fillMaxWidth().padding(16.dp), shape = RoundedCornerShape(16.dp)) {
+                Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(if (editingMember != null) "Edit Member" else "Add Family Member", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    OutlinedTextField(value = nameStr, onValueChange = { nameStr = it }, label = { Text("Full Name *") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = relStr, onValueChange = { relStr = it }, label = { Text("Relationship (e.g. Son, Spouse)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = dobStr, onValueChange = { dobStr = it }, label = { Text("Date of Birth (YYYY-MM-DD)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = bloodStr, onValueChange = { bloodStr = it }, label = { Text("Blood Type") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = notesStr, onValueChange = { notesStr = it }, label = { Text("Health Notes") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { showDialog = false; editingMember = null }) { Text("Cancel") }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                if (nameStr.trim().isNotEmpty()) {
+                                    val existing = editingMember
+                                    if (existing != null) {
+                                        viewModel.updateFamilyMember(existing.copy(name = nameStr, relationship = relStr, dateOfBirth = dobStr, bloodType = bloodStr, notes = notesStr))
+                                    } else {
+                                        viewModel.addFamilyMember(nameStr, relStr, dobStr, bloodStr, notesStr)
+                                    }
+                                    showDialog = false; editingMember = null
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
+                        ) { Text(if (editingMember != null) "Update" else "Save", color = SlateDarkBg) }
+                    }
+                }
+            }
+        }
+    }
+}
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            OutlinedTextField(
-                value = userQueryInput,
-                onValueChange = { userQueryInput = it },
-                label = { Text("Ask your health assistant...") },
+@Composable
+fun AIHealthAssistantView(viewModel: HealthViewModel, lang: String) {
+    val response by viewModel.aiResponse.collectAsState()
+    val loading by viewModel.aiLoading.collectAsState()
+    val weeklyNarrative by viewModel.weeklyNarrative.collectAsState()
+    val weeklyLoading by viewModel.weeklyNarrativeLoading.collectAsState()
+    val provider by viewModel.aiProvider.collectAsState()
+
+    var userQueryInput by remember { mutableStateOf("") }
+    var showWeekly by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        // Weekly summary toggle row
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = { showWeekly = false },
+                border = BorderStroke(1.dp, if (!showWeekly) HighlightTeal else MaterialTheme.colorScheme.outline),
                 modifier = Modifier.weight(1f)
-            )
+            ) { Text("Chat", color = if (!showWeekly) HighlightTeal else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp) }
+            OutlinedButton(
+                onClick = { showWeekly = true },
+                border = BorderStroke(1.dp, if (showWeekly) HighlightTeal else MaterialTheme.colorScheme.outline),
+                modifier = Modifier.weight(1f)
+            ) { Text("Weekly Summary", color = if (showWeekly) HighlightTeal else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp) }
+        }
 
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (showWeekly) {
+            Card(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                    if (weeklyLoading) {
+                        Column(modifier = Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(color = HighlightTeal)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Generating your 7-day health summary...", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    } else {
+                        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                            Text("AI Weekly Health Report", fontWeight = FontWeight.Black, fontSize = 12.sp, color = HighlightTeal, modifier = Modifier.padding(bottom = 8.dp))
+                            if (weeklyNarrative.isEmpty()) {
+                                Text("Tap \"Generate\" below to get a personalised 7-day health narrative powered by AI.", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            } else {
+                                Text(weeklyNarrative, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
             Button(
-                onClick = {
-                    viewModel.queryAIAssistant(userQueryInput)
-                    userQueryInput = ""
-                },
-                enabled = userQueryInput.trim().isNotEmpty() && !loading,
+                onClick = { viewModel.generateWeeklyNarrative() },
+                enabled = !weeklyLoading,
+                modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
             ) {
-                Text("Send", color = SlateDarkBg, fontWeight = FontWeight.Bold)
+                Text("Generate Weekly Summary", color = SlateDarkBg, fontWeight = FontWeight.Bold)
+            }
+        } else {
+            Card(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                    if (loading) {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = HighlightTeal)
+                    } else {
+                        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                            Text(
+                                text = if (provider.isNotEmpty()) "Assistant Powered By $provider" else "Health GPT Assistant",
+                                fontWeight = FontWeight.Black, fontSize = 12.sp, color = HighlightTeal,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            if (response.isEmpty()) {
+                                Text(
+                                    text = "Ask anything about your health records, metrics, trend indicators or suggest health tips.\n\n" +
+                                           "Sample Prompts:\n" +
+                                           "• \"What does my latest Blood Pressure reading indicate?\"\n" +
+                                           "• \"What is my dynamic BMI and how can I bring it to normal range?\"\n" +
+                                           "• \"Analyze my lipid logs (cholesterol & triglycerides).\"",
+                                    fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                Text(text = response, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = userQueryInput,
+                    onValueChange = { userQueryInput = it },
+                    label = { Text("Ask your health assistant...") },
+                    modifier = Modifier.weight(1f)
+                )
+                Button(
+                    onClick = { viewModel.queryAIAssistant(userQueryInput); userQueryInput = "" },
+                    enabled = userQueryInput.trim().isNotEmpty() && !loading,
+                    colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
+                ) { Text("Send", color = SlateDarkBg, fontWeight = FontWeight.Bold) }
             }
         }
     }

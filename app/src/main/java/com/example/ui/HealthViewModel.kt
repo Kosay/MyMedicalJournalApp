@@ -41,6 +41,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.example.MedicalJournalApp
 import com.example.workers.HealthAlertsWorker
+import com.example.workers.MedicationReminderWorker
 import java.util.concurrent.TimeUnit
 
 class HealthViewModel(application: Application) : AndroidViewModel(application) {
@@ -188,6 +189,17 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
             )
     }
 
+    fun scheduleMedicationReminder() {
+        val request = PeriodicWorkRequestBuilder<MedicationReminderWorker>(1, TimeUnit.DAYS)
+            .build()
+        WorkManager.getInstance(getApplication())
+            .enqueueUniquePeriodicWork(
+                MedicationReminderWorker.WORK_NAME,
+                ExistingPeriodicWorkPolicy.KEEP,
+                request
+            )
+    }
+
     private val _googleAccountEmail = MutableStateFlow(sharedPrefs.getString("google_account_email", "") ?: "")
     val googleAccountEmail: StateFlow<String> = _googleAccountEmail.asStateFlow()
 
@@ -232,6 +244,31 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
 
     val bloodSugarRecords: StateFlow<List<BloodSugarRecord>> = repository.allBloodSugar
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val moodRecords: StateFlow<List<MoodRecord>> = repository.allMoods
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val medicationDoses: StateFlow<List<MedicationDoseRecord>> = repository.allMedicationDoses
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val familyMembers: StateFlow<List<FamilyMemberProfile>> = repository.allFamilyMembers
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Water goal (ml/day) stored in SharedPrefs
+    private val _waterGoalMl = MutableStateFlow(sharedPrefs.getInt("waterGoalMl", 2000))
+    val waterGoalMl: StateFlow<Int> = _waterGoalMl.asStateFlow()
+
+    fun updateWaterGoal(ml: Int) {
+        _waterGoalMl.value = ml
+        sharedPrefs.edit().putInt("waterGoalMl", ml).apply()
+    }
+
+    // Weekly AI narrative
+    private val _weeklyNarrative = MutableStateFlow("")
+    val weeklyNarrative: StateFlow<String> = _weeklyNarrative.asStateFlow()
+
+    private val _weeklyNarrativeLoading = MutableStateFlow(false)
+    val weeklyNarrativeLoading: StateFlow<Boolean> = _weeklyNarrativeLoading.asStateFlow()
 
     // --- Blood Pressure pattern analysis (sleep, smoking, activity correlation) ---
     val bpCorrelationData: StateFlow<BpCorrelationData> = combine(
@@ -565,6 +602,144 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                     numberOfChildren = numberOfChildren
                 )
             )
+        }
+    }
+
+    // --- Mood ---
+    fun addMood(score: Int, notes: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertMood(MoodRecord(score = score, notes = notes))
+        }
+    }
+
+    fun deleteMood(record: MoodRecord) {
+        viewModelScope.launch(Dispatchers.IO) { repository.deleteMood(record) }
+    }
+
+    // --- Medication Dose Log ---
+    fun logMedicationDose(medication: com.example.data.MedicationRecord, taken: Boolean, notes: String = "") {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertMedicationDose(
+                MedicationDoseRecord(
+                    medicationId = medication.id,
+                    medicationName = medication.name,
+                    taken = taken,
+                    notes = notes
+                )
+            )
+        }
+    }
+
+    fun deleteMedicationDose(record: MedicationDoseRecord) {
+        viewModelScope.launch(Dispatchers.IO) { repository.deleteMedicationDose(record) }
+    }
+
+    // --- Family Members ---
+    fun addFamilyMember(name: String, relationship: String, dateOfBirth: String, bloodType: String, notes: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertFamilyMember(
+                FamilyMemberProfile(name = name, relationship = relationship, dateOfBirth = dateOfBirth, bloodType = bloodType, notes = notes)
+            )
+        }
+    }
+
+    fun updateFamilyMember(profile: FamilyMemberProfile) {
+        viewModelScope.launch(Dispatchers.IO) { repository.insertFamilyMember(profile) }
+    }
+
+    fun deleteFamilyMember(profile: FamilyMemberProfile) {
+        viewModelScope.launch(Dispatchers.IO) { repository.deleteFamilyMember(profile) }
+    }
+
+    // --- Weekly AI Health Narrative ---
+    fun generateWeeklyNarrative() {
+        var key = _apiKey.value
+        val provider = _aiProvider.value
+        val model = _modelName.value
+
+        if (key.isEmpty() && provider == "Gemini") {
+            key = try {
+                val field = BuildConfig::class.java.getField("GEMINI_API_KEY")
+                field.get(null) as? String ?: ""
+            } catch (e: Exception) { "" }
+        }
+
+        if (key.isEmpty()) {
+            _weeklyNarrative.value = "Please configure your API key in Settings to generate a weekly health summary."
+            return
+        }
+
+        _weeklyNarrativeLoading.value = true
+        _weeklyNarrative.value = ""
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val weekMs = 7L * 24 * 3600 * 1000
+                val since = System.currentTimeMillis() - weekMs
+                val sb = StringBuilder()
+
+                sb.append("WEEKLY HEALTH SUMMARY (Last 7 Days):\n\n")
+
+                val bpList = bloodPressureRecords.value.filter { it.timestamp >= since }
+                if (bpList.isNotEmpty()) {
+                    val avgSys = bpList.map { it.systolic }.average()
+                    val avgDia = bpList.map { it.diastolic }.average()
+                    val avgHr = bpList.map { it.heartRate }.average()
+                    sb.append("Blood Pressure (${bpList.size} readings): Avg ${avgSys.toInt()}/${avgDia.toInt()} mmHg, HR ${avgHr.toInt()} bpm\n")
+                }
+
+                val sugarList = bloodSugarRecords.value.filter { it.timestamp >= since }
+                if (sugarList.isNotEmpty()) {
+                    val avg = sugarList.map { normalizeBloodSugarToMgDl(it.value, it.unit) }.average()
+                    sb.append("Blood Sugar (${sugarList.size} readings): Avg ${avg.toInt()} mg/dL\n")
+                }
+
+                val weightList = weightRecords.value.filter { it.timestamp >= since }
+                if (weightList.isNotEmpty()) {
+                    sb.append("Weight: ${weightList.last().weightKg} kg → ${weightList.first().weightKg} kg (${weightList.size} entries)\n")
+                }
+
+                val sleepList = sleepRecords.value.filter { it.timestamp >= since }
+                if (sleepList.isNotEmpty()) {
+                    val avg = sleepList.map { it.hours }.average()
+                    sb.append("Sleep: Avg ${String.format(Locale.US, "%.1f", avg)} hours/night (${sleepList.size} nights)\n")
+                }
+
+                val moodList = moodRecords.value.filter { it.timestamp >= since }
+                if (moodList.isNotEmpty()) {
+                    val avg = moodList.map { it.score }.average()
+                    sb.append("Mood: Avg ${String.format(Locale.US, "%.1f", avg)}/5 (${moodList.size} logs)\n")
+                }
+
+                val activeMeds = medications.value.filter { it.isActive }
+                if (activeMeds.isNotEmpty()) {
+                    sb.append("Active Medications: ${activeMeds.joinToString { it.name }}\n")
+                }
+
+                val symptomList = symptoms.value.filter { it.timestamp >= since }
+                if (symptomList.isNotEmpty()) {
+                    sb.append("Symptoms this week: ${symptomList.joinToString { "${it.symptomName} (${it.severity})" }}\n")
+                }
+
+                val lifestyle = lifestyleRecords.value.filter { it.timestamp >= since }
+                val waterTotal = lifestyle.filter { it.type == "water" }.sumOf { it.amount.toDouble() }
+                val exerciseTotal = lifestyle.filter { it.type == "exercise" }.sumOf { it.amount.toDouble() }
+                if (waterTotal > 0) sb.append("Total water intake: ${waterTotal.toInt()} ml\n")
+                if (exerciseTotal > 0) sb.append("Total exercise: ${exerciseTotal.toInt()} minutes\n")
+
+                val prompt = "You are a personal health assistant. Analyze this patient's 7-day health data and write a warm, clear, 3-4 paragraph weekly health narrative. Highlight trends, improvements, concerns, and actionable suggestions. Always remind the user that this is informational only and not a medical diagnosis.\n\n${sb}"
+
+                val narrative = when (provider) {
+                    "Gemini" -> callGeminiAPI(key, model, prompt)
+                    "OpenAI", "DeepSeek" -> callChatCompletionsAPI(provider, key, model, prompt)
+                    else -> "Unsupported AI Provider"
+                }
+                _weeklyNarrative.value = narrative
+            } catch (e: Exception) {
+                _weeklyNarrative.value = "Error generating summary: ${e.localizedMessage}"
+            } finally {
+                _weeklyNarrativeLoading.value = false
+            }
         }
     }
 
@@ -1422,6 +1597,28 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
             })
         }
 
+        val moodArr = JSONArray()
+        moodRecords.value.forEach {
+            moodArr.put(JSONObject().apply {
+                put("score", it.score)
+                put("notes", it.notes)
+                put("timestamp", it.timestamp)
+            })
+        }
+        root.put("mood_records", moodArr)
+
+        val familyArr = JSONArray()
+        familyMembers.value.forEach {
+            familyArr.put(JSONObject().apply {
+                put("name", it.name)
+                put("relationship", it.relationship)
+                put("dateOfBirth", it.dateOfBirth)
+                put("bloodType", it.bloodType)
+                put("notes", it.notes)
+            })
+        }
+        root.put("family_members", familyArr)
+
         return root.toString(2)
     }
 
@@ -2086,6 +2283,36 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                         numberOfChildren = obj.optInt("numberOfChildren", 0)
                     )
                 )
+            }
+
+            // 9. Mood Records
+            root.optJSONArray("mood_records")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    repository.insertMood(
+                        MoodRecord(
+                            score = obj.optInt("score", 3),
+                            notes = obj.optString("notes"),
+                            timestamp = obj.optLong("timestamp", System.currentTimeMillis())
+                        )
+                    )
+                }
+            }
+
+            // 10. Family Members
+            root.optJSONArray("family_members")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    repository.insertFamilyMember(
+                        FamilyMemberProfile(
+                            name = obj.optString("name"),
+                            relationship = obj.optString("relationship"),
+                            dateOfBirth = obj.optString("dateOfBirth"),
+                            bloodType = obj.optString("bloodType"),
+                            notes = obj.optString("notes")
+                        )
+                    )
+                }
             }
 
             true

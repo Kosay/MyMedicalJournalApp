@@ -98,3 +98,31 @@ data class BloodSugarRecord(
     val timestamp: Long,
     val notes: String = ""
 )
+
+@Entity(tableName = "mood_records")
+data class MoodRecord(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val score: Int,   // 1 = very bad … 5 = great
+    val notes: String = "",
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "medication_doses")
+data class MedicationDoseRecord(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val medicationId: Int = 0,
+    val medicationName: String,
+    val timestamp: Long = System.currentTimeMillis(),
+    val taken: Boolean = true,
+    val notes: String = ""
+)
+
+@Entity(tableName = "family_members")
+data class FamilyMemberProfile(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val name: String,
+    val relationship: String = "",
+    val dateOfBirth: String = "",
+    val bloodType: String = "",
+    val notes: String = ""
+)

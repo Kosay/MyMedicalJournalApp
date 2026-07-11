@@ -104,4 +104,34 @@ interface HealthDao {
 
     @Delete
     suspend fun deleteBloodSugar(record: BloodSugarRecord)
+
+    // --- Mood ---
+    @Query("SELECT * FROM mood_records ORDER BY timestamp DESC")
+    fun getAllMoods(): Flow<List<MoodRecord>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMood(record: MoodRecord)
+
+    @Delete
+    suspend fun deleteMood(record: MoodRecord)
+
+    // --- Medication Doses ---
+    @Query("SELECT * FROM medication_doses ORDER BY timestamp DESC")
+    fun getAllMedicationDoses(): Flow<List<MedicationDoseRecord>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMedicationDose(record: MedicationDoseRecord)
+
+    @Delete
+    suspend fun deleteMedicationDose(record: MedicationDoseRecord)
+
+    // --- Family Members ---
+    @Query("SELECT * FROM family_members ORDER BY name ASC")
+    fun getAllFamilyMembers(): Flow<List<FamilyMemberProfile>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertFamilyMember(profile: FamilyMemberProfile)
+
+    @Delete
+    suspend fun deleteFamilyMember(profile: FamilyMemberProfile)
 }
