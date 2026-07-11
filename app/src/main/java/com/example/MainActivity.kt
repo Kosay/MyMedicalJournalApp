@@ -1,9 +1,13 @@
 package com.example
 
+import android.Manifest
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.collectAsState
@@ -29,13 +33,25 @@ class MainActivity : ComponentActivity() {
         val factory = HealthViewModelFactory(application)
         val viewModel = ViewModelProvider(this, factory)[HealthViewModel::class.java]
 
+        viewModel.scheduleDailyPatternCheck()
+
         setContent {
             val themeMode by viewModel.theme.collectAsState()
-            
+
             val isDark = when(themeMode.uppercase()) {
                 "LIGHT" -> false
                 "DARK" -> true
                 else -> isSystemInDarkTheme()
+            }
+
+            // Request POST_NOTIFICATIONS permission on Android 13+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val permissionLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission()
+                ) { /* granted silently; notifications work if user accepts */ }
+                LaunchedEffect(Unit) {
+                    permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
             }
 
             MyApplicationTheme(darkTheme = isDark) {

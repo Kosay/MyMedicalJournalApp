@@ -33,6 +33,15 @@ import java.util.zip.ZipOutputStream
 import android.util.Base64
 import java.security.MessageDigest
 import java.security.SecureRandom
+import android.app.NotificationManager
+import android.os.Build
+import androidx.core.app.NotificationCompat
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import com.example.MedicalJournalApp
+import com.example.workers.HealthAlertsWorker
+import java.util.concurrent.TimeUnit
 
 class HealthViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as MedicalJournalApp
@@ -92,6 +101,91 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
 
     companion object {
         const val DEFAULT_GOOGLE_CLIENT_ID = "1046908332468-bgcrp7ve4776u26j5it93fef6n6hco2q.apps.googleusercontent.com"
+        private const val NOTIF_ID_DANGER = 1000
+    }
+
+    // --- Danger alerts ---
+    private val _dangerAlert = MutableStateFlow<DangerAlert?>(null)
+    val dangerAlert: StateFlow<DangerAlert?> = _dangerAlert.asStateFlow()
+
+    fun dismissDangerAlert() { _dangerAlert.value = null }
+
+    private fun evaluateBpDanger(systolic: Int, diastolic: Int, heartRate: Int) {
+        _dangerAlert.value = when {
+            systolic >= 180 || diastolic >= 120 -> DangerAlert(
+                DangerSeverity.CRISIS, "Hypertensive Crisis",
+                "BP at $systolic/$diastolic mmHg is a medical emergency. Seek emergency care immediately."
+            )
+            systolic >= 140 || diastolic >= 90 -> DangerAlert(
+                DangerSeverity.HIGH, "Stage 2 High Blood Pressure",
+                "BP at $systolic/$diastolic mmHg is very high. Contact your doctor today."
+            )
+            systolic < 90 || diastolic < 60 -> DangerAlert(
+                DangerSeverity.WARNING, "Low Blood Pressure",
+                "BP at $systolic/$diastolic mmHg is low. Rest and monitor for dizziness or fainting."
+            )
+            heartRate > 130 -> DangerAlert(
+                DangerSeverity.WARNING, "Elevated Heart Rate",
+                "Heart rate at $heartRate bpm is high. If at rest, contact your doctor."
+            )
+            heartRate < 45 -> DangerAlert(
+                DangerSeverity.WARNING, "Low Heart Rate",
+                "Heart rate at $heartRate bpm is very low. If at rest, consult your doctor."
+            )
+            else -> null
+        }
+        _dangerAlert.value?.let { sendDangerNotification(it) }
+    }
+
+    private fun evaluateBloodSugarDanger(valueMgDl: Float) {
+        _dangerAlert.value = when {
+            valueMgDl < 70f -> DangerAlert(
+                DangerSeverity.CRISIS, "Hypoglycemia",
+                "Blood sugar at ${valueMgDl.toInt()} mg/dL is dangerously low. Consume fast-acting glucose immediately."
+            )
+            valueMgDl > 250f -> DangerAlert(
+                DangerSeverity.HIGH, "Very High Blood Sugar",
+                "Blood sugar at ${valueMgDl.toInt()} mg/dL is very high. Check for ketones and contact your doctor."
+            )
+            valueMgDl > 180f -> DangerAlert(
+                DangerSeverity.WARNING, "Elevated Blood Sugar",
+                "Blood sugar at ${valueMgDl.toInt()} mg/dL is above target range. Review recent meals and medication."
+            )
+            else -> null
+        }
+        _dangerAlert.value?.let { sendDangerNotification(it) }
+    }
+
+    private fun sendDangerNotification(alert: DangerAlert) {
+        val ctx = getApplication<Application>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val nm = ctx.getSystemService(NotificationManager::class.java)
+            if (!nm.areNotificationsEnabled()) return
+        }
+        val notification = NotificationCompat.Builder(ctx, MedicalJournalApp.CHANNEL_ALERTS)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle(alert.title)
+            .setContentText(alert.message)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(alert.message))
+            .setPriority(
+                if (alert.severity == DangerSeverity.CRISIS) NotificationCompat.PRIORITY_MAX
+                else NotificationCompat.PRIORITY_HIGH
+            )
+            .setAutoCancel(true)
+            .build()
+        val nm = ctx.getSystemService(NotificationManager::class.java)
+        nm.notify(NOTIF_ID_DANGER, notification)
+    }
+
+    fun scheduleDailyPatternCheck() {
+        val request = PeriodicWorkRequestBuilder<HealthAlertsWorker>(1, TimeUnit.DAYS)
+            .build()
+        WorkManager.getInstance(getApplication())
+            .enqueueUniquePeriodicWork(
+                HealthAlertsWorker.WORK_NAME,
+                ExistingPeriodicWorkPolicy.KEEP,
+                request
+            )
     }
 
     private val _googleAccountEmail = MutableStateFlow(sharedPrefs.getString("google_account_email", "") ?: "")
@@ -228,6 +322,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                     timestamp = timestamp
                 )
             )
+            evaluateBloodSugarDanger(normalizeBloodSugarToMgDl(value, "mg/dL"))
         }
     }
 
@@ -240,6 +335,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
     fun updateBloodSugar(record: BloodSugarRecord) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertBloodSugar(record)
+            evaluateBloodSugarDanger(normalizeBloodSugarToMgDl(record.value, record.unit))
         }
     }
 
@@ -254,6 +350,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                     notes = notes
                 )
             )
+            evaluateBpDanger(systolic, diastolic, heartRate)
         }
     }
 
@@ -266,6 +363,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
     fun updateBloodPressure(record: BloodPressureRecord) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertBloodPressure(record)
+            evaluateBpDanger(record.systolic, record.diastolic, record.heartRate)
         }
     }
 
@@ -1997,6 +2095,14 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 }
+
+enum class DangerSeverity { CRISIS, HIGH, WARNING }
+
+data class DangerAlert(
+    val severity: DangerSeverity,
+    val title: String,
+    val message: String
+)
 
 data class BpCorrelationBucket(
     val label: String,

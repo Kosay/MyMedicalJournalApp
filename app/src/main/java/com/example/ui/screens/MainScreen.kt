@@ -49,6 +49,8 @@ import coil.compose.AsyncImage
 import com.example.data.*
 import com.example.ui.LocalStrings
 import com.example.ui.HealthViewModel
+import com.example.ui.DangerAlert
+import com.example.ui.DangerSeverity
 import com.example.ui.theme.*
 import java.util.*
 
@@ -522,12 +524,66 @@ fun TrackMenuItemCard(title: String, onClick: () -> Unit) {
 }
 
 // ------------------------------------------
+// DANGER ALERT BANNER
+// ------------------------------------------
+@Composable
+fun DangerAlertBanner(alert: DangerAlert, onDismiss: () -> Unit) {
+    val (bgColor, borderColor) = when (alert.severity) {
+        DangerSeverity.CRISIS -> Color(0xFFFFCDD2) to Color(0xFFD32F2F)
+        DangerSeverity.HIGH   -> Color(0xFFFFE0B2) to Color(0xFFE65100)
+        DangerSeverity.WARNING -> Color(0xFFFFF9C4) to Color(0xFFF9A825)
+    }
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = bgColor),
+        shape = RoundedCornerShape(8.dp),
+        border = androidx.compose.foundation.BorderStroke(2.dp, borderColor)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Icon(
+                imageVector = Icons.Default.Warning,
+                contentDescription = null,
+                tint = borderColor,
+                modifier = Modifier.padding(top = 2.dp, end = 8.dp)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = alert.title,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = borderColor
+                )
+                Text(
+                    text = alert.message,
+                    fontSize = 13.sp,
+                    color = Color(0xFF333333)
+                )
+            }
+            IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Dismiss",
+                    tint = borderColor,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+    }
+}
+
+// ------------------------------------------
 // CATEGORY DETAILS VIEWS & INPUT OVERLAYS
 // ------------------------------------------
 @Composable
 fun BpDetailView(viewModel: HealthViewModel, lang: String) {
     val records by viewModel.bloodPressureRecords.collectAsState()
     val correlationData by viewModel.bpCorrelationData.collectAsState()
+    val dangerAlert by viewModel.dangerAlert.collectAsState()
     var showDialog by remember { mutableStateOf(false) }
     var editingRecord by remember { mutableStateOf<com.example.data.BloodPressureRecord?>(null) }
     var isPatternAnalysisExpanded by remember { mutableStateOf(false) }
@@ -540,6 +596,10 @@ fun BpDetailView(viewModel: HealthViewModel, lang: String) {
     val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxSize()) {
+        dangerAlert?.let { alert ->
+            DangerAlertBanner(alert = alert, onDismiss = { viewModel.dismissDangerAlert() })
+        }
+
         if (records.size >= 2) {
             val systolicPoints = records.take(7).reversed().map { it.systolic.toFloat() }
             val diastolicPoints = records.take(7).reversed().map { it.diastolic.toFloat() }
@@ -728,6 +788,7 @@ fun BpDetailView(viewModel: HealthViewModel, lang: String) {
 @Composable
 fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
     val records by viewModel.bloodSugarRecords.collectAsState()
+    val dangerAlert by viewModel.dangerAlert.collectAsState()
     var showDialog by remember { mutableStateOf(false) }
     var editingRecord by remember { mutableStateOf<com.example.data.BloodSugarRecord?>(null) }
 
@@ -739,6 +800,10 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
     val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxSize()) {
+        dangerAlert?.let { alert ->
+            DangerAlertBanner(alert = alert, onDismiss = { viewModel.dismissDangerAlert() })
+        }
+
         if (records.isNotEmpty()) {
             val chartPoints = records.take(7).reversed().map { it.value }
             TrendLineChart(points = chartPoints, label = "Blood Sugar (${records.firstOrNull()?.unit ?: "mg/dL"})")
