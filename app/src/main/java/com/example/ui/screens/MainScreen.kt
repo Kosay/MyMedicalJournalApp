@@ -3081,7 +3081,7 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
 
         // Export for Doctor (DataDoctorPro-compatible CSV)
         item {
-            Text("Export for Doctor", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = HighlightTeal)
+            Text(trans("export_for_doctor"), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = HighlightTeal)
 
             val lastDoctorExportTime by viewModel.lastDoctorExportTime.collectAsState()
 
@@ -3092,12 +3092,13 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
             ) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = "Share a CSV of your Blood Pressure, Blood Sugar, Weight, Sleep, Symptom and Lab Result records with your doctor (e.g. for import into DataDoctorPro).",
+                        text = trans("doctor_export_desc"),
                         fontSize = 11.sp,
                         color = Color.White.copy(alpha = 0.6f)
                     )
+                    val neverStr = trans("never")
                     Text(
-                        text = if (lastDoctorExportTime > 0L) "Last sent: ${viewModel.formatDate(lastDoctorExportTime)}" else "Last sent: Never",
+                        text = "${trans("last_sent")}: ${if (lastDoctorExportTime > 0L) viewModel.formatDate(lastDoctorExportTime) else neverStr}",
                         fontSize = 11.sp,
                         color = Color.White.copy(alpha = 0.5f)
                     )
@@ -3106,13 +3107,13 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         OutlinedButton(onClick = { viewModel.exportForDoctor(context, "last30") }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)) {
-                            Text("30 Days", fontSize = 10.sp)
+                            Text(trans("days_30"), fontSize = 10.sp)
                         }
                         OutlinedButton(onClick = { viewModel.exportForDoctor(context, "last90") }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)) {
-                            Text("90 Days", fontSize = 10.sp)
+                            Text(trans("days_90"), fontSize = 10.sp)
                         }
                         OutlinedButton(onClick = { viewModel.exportForDoctor(context, "all") }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)) {
-                            Text("All Time", fontSize = 10.sp)
+                            Text(trans("all_time"), fontSize = 10.sp)
                         }
                     }
                     Button(
@@ -3122,20 +3123,17 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                     ) {
                         Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp), tint = SlateDarkBg)
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Send New Records Since Last Export", color = SlateDarkBg, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        Text(trans("send_new_records"), color = SlateDarkBg, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
                 }
             }
         }
 
-        // WhatsApp-Style Backup & Sync Center
+        // Backup & Restore
         item {
-            Text("Backup & Sync (WhatsApp Style)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = HighlightTeal)
-            
+            Text(trans("backup_sync"), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = HighlightTeal)
+
             val lastLocalTime by viewModel.lastLocalBackupTime.collectAsState()
-            val lastDriveTime by viewModel.lastDriveBackupTime.collectAsState()
-            val syncStatus by viewModel.googleDriveSyncStatus.collectAsState()
-            val isSyncing by viewModel.googleDriveIsSyncing.collectAsState()
 
             Card(
                 modifier = Modifier
@@ -3159,7 +3157,7 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                             modifier = Modifier.size(24.dp)
                         )
                         Text(
-                            text = "Backup & Restore options for your medical journal records.",
+                            text = trans("backup_desc"),
                             fontSize = 12.sp,
                             color = Color.White.copy(alpha = 0.8f),
                             lineHeight = 16.sp,
@@ -3172,18 +3170,18 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                     // Local Backup Section
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
-                            text = "Local Device Backup",
+                            text = trans("local_backup"),
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             color = Color.White
                         )
-                        val localTimeStr = if (lastLocalTime > 0L) viewModel.formatDate(lastLocalTime) else "Never"
+                        val localTimeStr = if (lastLocalTime > 0L) viewModel.formatDate(lastLocalTime) else trans("never")
                         Text(
-                            text = "Last backup: $localTimeStr",
+                            text = "${trans("last_backup")}: $localTimeStr",
                             fontSize = 12.sp,
                             color = Color.White.copy(alpha = 0.6f)
                         )
-                        
+
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -3196,7 +3194,7 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(14.dp), tint = SlateDarkBg)
-                                    Text("Back Up", color = SlateDarkBg, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text(trans("back_up"), color = SlateDarkBg, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                             Button(
@@ -3207,371 +3205,7 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
-                                    Text("Restore", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-                    }
-
-                    HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
-
-                    // Google Drive Backup Section
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "Google Drive Backup & Restore",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = Color.White
-                        )
-                        val driveTimeStr = if (lastDriveTime > 0L) viewModel.formatDate(lastDriveTime) else "Never"
-                        Text(
-                            text = "Last sync: $driveTimeStr",
-                            fontSize = 12.sp,
-                            color = Color.White.copy(alpha = 0.6f)
-                        )
-                        Text(
-                            text = "Google Drive Connection: $syncStatus",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = HighlightTeal
-                        )
-
-                        val isGoogleSignedIn by viewModel.isGoogleSignedIn.collectAsState()
-                        val googleAccountEmail by viewModel.googleAccountEmail.collectAsState()
-                        val googleClientId by viewModel.googleClientId.collectAsState()
-                        val manualDriveToken by viewModel.manualDriveToken.collectAsState()
-
-                        var showGoogleAuthWebView by remember { mutableStateOf(false) }
-                        var showOAuthSetupDialog by remember { mutableStateOf(false) }
-                        var isAdvancedOptionsExpanded by remember { mutableStateOf(false) }
-
-                        if (showOAuthSetupDialog) {
-                            AlertDialog(
-                                onDismissRequest = { showOAuthSetupDialog = false },
-                                title = { Text("Google Sign-In Setup Required") },
-                                text = {
-                                    Column {
-                                        Text(
-                                            "The built-in Google Client ID is just a placeholder and isn't registered with Google, " +
-                                            "so sign-in fails with \"Error 401: invalid_client\".\n\n" +
-                                            "To enable Google Drive backup, create your own free OAuth Client ID:\n\n" +
-                                            "1. Go to console.cloud.google.com and create (or select) a project.\n" +
-                                            "2. Enable the \"Google Drive API\".\n" +
-                                            "3. Go to \"APIs & Services\" > \"Credentials\" > \"Create Credentials\" > \"OAuth client ID\".\n" +
-                                            "4. Choose \"Web application\".\n" +
-                                            "5. Under \"Authorized redirect URIs\", add: http://localhost\n" +
-                                            "6. Copy the generated Client ID and paste it below in \"Advanced Drive Settings\" > \"Private OAuth Web Client ID (PKCE)\".",
-                                            fontSize = 13.sp
-                                        )
-                                    }
-                                },
-                                confirmButton = {
-                                    TextButton(onClick = {
-                                        isAdvancedOptionsExpanded = true
-                                        showOAuthSetupDialog = false
-                                    }) { Text("Open Advanced Settings") }
-                                },
-                                dismissButton = {
-                                    TextButton(onClick = { showOAuthSetupDialog = false }) { Text("Close") }
-                                }
-                            )
-                        }
-
-                        if (showGoogleAuthWebView) {
-                            val authUrl = remember { viewModel.getGoogleAuthUrl() }
-                            Dialog(
-                                onDismissRequest = { showGoogleAuthWebView = false },
-                                properties = DialogProperties(
-                                    dismissOnBackPress = true,
-                                    dismissOnClickOutside = false,
-                                    usePlatformDefaultWidth = false
-                                )
-                            ) {
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(16.dp),
-                                    shape = RoundedCornerShape(16.dp),
-                                    colors = CardDefaults.cardColors(containerColor = SlateDarkBg),
-                                    border = BorderStroke(1.dp, HighlightTeal.copy(alpha = 0.5f))
-                                ) {
-                                    Column(modifier = Modifier.fillMaxSize()) {
-                                        // Header
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = "Sign in with Google",
-                                                color = Color.White,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 15.sp
-                                            )
-                                            IconButton(onClick = { showGoogleAuthWebView = false }) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Close,
-                                                    contentDescription = "Close",
-                                                    tint = Color.White,
-                                                    modifier = Modifier.size(20.dp)
-                                                )
-                                            }
-                                        }
-
-                                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
-
-                                        // WebView
-                                        AndroidView(
-                                            modifier = Modifier.weight(1f).fillMaxWidth(),
-                                            factory = { ctx ->
-                                                WebView(ctx).apply {
-                                                    settings.apply {
-                                                        javaScriptEnabled = true
-                                                        domStorageEnabled = true
-                                                        databaseEnabled = true
-                                                        cacheMode = WebSettings.LOAD_DEFAULT
-                                                        userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36"
-                                                    }
-                                                    webViewClient = object : WebViewClient() {
-                                                        private var authCodeHandled = false
-
-                                                        override fun shouldOverrideUrlLoading(
-                                                            view: WebView?,
-                                                            request: WebResourceRequest?
-                                                        ): Boolean {
-                                                            val url = request?.url?.toString() ?: ""
-                                                            if (url.startsWith("http://localhost")) {
-                                                                val code = request?.url?.getQueryParameter("code")
-                                                                if (code != null && !authCodeHandled) {
-                                                                    authCodeHandled = true
-                                                                    showGoogleAuthWebView = false
-                                                                    viewModel.completeGoogleSignIn(code) { success, msg ->
-                                                                        importStatusMessage = if (success) "Google account connected! You can now sync to Drive." else "Sign-in failed: $msg"
-                                                                        showImportStatus = true
-                                                                    }
-                                                                }
-                                                                return true
-                                                            }
-                                                            return false
-                                                        }
-
-                                                        override fun onPageFinished(view: WebView?, url: String?) {
-                                                            super.onPageFinished(view, url)
-                                                            if (authCodeHandled) return
-                                                            view?.evaluateJavascript(
-                                                                "document.body ? document.body.innerText.includes('invalid_client') : false"
-                                                            ) { result ->
-                                                                if (result == "true") {
-                                                                    showGoogleAuthWebView = false
-                                                                    showOAuthSetupDialog = true
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                    loadUrl(authUrl)
-                                                }
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // Connected Account status or Sign-In button
-                        if (isGoogleSignedIn) {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.05f)),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                border = BorderStroke(1.dp, HighlightTeal.copy(alpha = 0.2f))
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp).fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(8.dp)
-                                                .clip(CircleShape)
-                                                .background(HighlightTeal)
-                                        )
-                                        Column {
-                                            Text(
-                                                text = "Connected Account",
-                                                fontSize = 11.sp,
-                                                color = Color.White.copy(alpha = 0.5f)
-                                            )
-                                            Text(
-                                                text = googleAccountEmail.ifEmpty { "Patient Drive Storage" },
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White
-                                            )
-                                        }
-                                    }
-                                    
-                                    Button(
-                                        onClick = { viewModel.googleSignOut() },
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.15f)),
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                        shape = RoundedCornerShape(6.dp),
-                                        border = BorderStroke(1.dp, Color.Red.copy(alpha = 0.5f))
-                                    ) {
-                                        Text("Disconnect", color = Color.Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        } else {
-                            Button(
-                                onClick = {
-                                    if (viewModel.isUsingPlaceholderClientId()) {
-                                        showOAuthSetupDialog = true
-                                    } else {
-                                        showGoogleAuthWebView = true
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth().height(42.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color.White),
-                                shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text(
-                                        text = "G",
-                                        color = Color(0xFF4285F4),
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 16.sp
-                                    )
-                                    Text(
-                                        text = "Sign In with Google",
-                                        color = SlateDarkBg,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp
-                                    )
-                                }
-                            }
-                        }
-
-                        // Sync Up and Pull Down trigger row
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Button(
-                                onClick = { viewModel.syncToGoogleDrive(context) },
-                                enabled = !isSyncing,
-                                colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                if (isSyncing) {
-                                    CircularProgressIndicator(modifier = Modifier.size(14.dp), color = SlateDarkBg, strokeWidth = 1.5.dp)
-                                } else {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Icon(Icons.Default.Backup, contentDescription = null, modifier = Modifier.size(14.dp), tint = SlateDarkBg)
-                                        Text("Sync Up", color = SlateDarkBg, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                            Button(
-                                onClick = { viewModel.restoreFromGoogleDrive(context) },
-                                enabled = !isSyncing,
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                if (isSyncing) {
-                                    CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Color.White, strokeWidth = 1.5.dp)
-                                } else {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
-                                        Text("Pull Down", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        }
-
-                        // Expandable Advanced Google Settings
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { isAdvancedOptionsExpanded = !isAdvancedOptionsExpanded }
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Text(
-                                "Advanced Drive Settings",
-                                fontSize = 11.sp,
-                                color = Color.White.copy(alpha = 0.5f),
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Icon(
-                                imageVector = if (isAdvancedOptionsExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
-                                contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.5f),
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-
-                        if (isAdvancedOptionsExpanded) {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.02f)),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    // Custom Client ID
-                                    OutlinedTextField(
-                                        value = googleClientId,
-                                        onValueChange = { viewModel.updateGoogleClientId(it) },
-                                        label = { Text("Private OAuth Web Client ID (PKCE)", fontSize = 10.sp) },
-                                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = HighlightTeal,
-                                            unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
-                                        )
-                                    )
-                                    
-                                    // Backwards-compatible manual token
-                                    var isTokenVisible by remember { mutableStateOf(false) }
-                                    OutlinedTextField(
-                                        value = manualDriveToken,
-                                        onValueChange = { viewModel.updateManualDriveToken(it) },
-                                        label = { Text("Manual Google Drive Access Token", fontSize = 10.sp) },
-                                        visualTransformation = if (isTokenVisible) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),
-                                        trailingIcon = {
-                                            IconButton(onClick = { isTokenVisible = !isTokenVisible }) {
-                                                val icon = if (isTokenVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
-                                                Icon(icon, contentDescription = "Toggle Visibility", modifier = Modifier.size(16.dp))
-                                            }
-                                        },
-                                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = HighlightTeal,
-                                            unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
-                                        )
-                                    )
-
-                                    Text(
-                                        text = "To guarantee maximum personal backup privacy, you can configure your own OAuth Web Application Client ID in your Google Cloud Developer Console. Make sure to add authorized redirect URI 'http://localhost' (no client secret is needed). This isolates your data entirely from other app instances.",
-                                        fontSize = 9.sp,
-                                        lineHeight = 11.sp,
-                                        color = Color.White.copy(alpha = 0.4f)
-                                    )
+                                    Text(trans("restore"), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -3586,7 +3220,7 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("Export Media Support ZIP", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text(trans("export_media_zip"), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 }
             }

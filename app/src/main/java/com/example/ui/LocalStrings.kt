@@ -91,7 +91,24 @@ object LocalStrings {
             "mark_taken" to "Mark Taken",
             "mark_skipped" to "Mark Skipped",
             "relationship" to "Relationship",
-            "date_of_birth" to "Date of Birth"
+            "date_of_birth" to "Date of Birth",
+
+            // Backup & Export for Doctor
+            "export_for_doctor" to "Export for Doctor",
+            "doctor_export_desc" to "Share a CSV of your Blood Pressure, Blood Sugar, Weight, Sleep, Symptom and Lab Result records with your doctor (e.g. for import into DataDoctorPro).",
+            "last_sent" to "Last sent",
+            "never" to "Never",
+            "days_30" to "30 Days",
+            "days_90" to "90 Days",
+            "all_time" to "All Time",
+            "send_new_records" to "Send New Records Since Last Export",
+            "backup_sync" to "Backup & Restore",
+            "backup_desc" to "Backup and restore your medical journal records on this device.",
+            "local_backup" to "Local Device Backup",
+            "last_backup" to "Last backup",
+            "back_up" to "Back Up",
+            "restore" to "Restore",
+            "export_media_zip" to "Export Media ZIP"
         ),
         "ar" to mapOf(
             "dashboard" to "لوحة البيانات",
@@ -182,7 +199,24 @@ object LocalStrings {
             "mark_taken" to "تم أخذها",
             "mark_skipped" to "تم التخطي",
             "relationship" to "العلاقة",
-            "date_of_birth" to "تاريخ الميلاد"
+            "date_of_birth" to "تاريخ الميلاد",
+
+            // Backup & Export for Doctor
+            "export_for_doctor" to "التصدير للطبيب",
+            "doctor_export_desc" to "شارك ملف CSV يحتوي على سجلات ضغط الدم وسكر الدم والوزن والنوم والأعراض ونتائج المختبر مع طبيبك.",
+            "last_sent" to "آخر إرسال",
+            "never" to "لا يوجد",
+            "days_30" to "٣٠ يوماً",
+            "days_90" to "٩٠ يوماً",
+            "all_time" to "كل الوقت",
+            "send_new_records" to "إرسال السجلات الجديدة منذ آخر تصدير",
+            "backup_sync" to "النسخ الاحتياطي والاسترداد",
+            "backup_desc" to "احتفظ بنسخة احتياطية من سجلاتك الصحية أو استردّها على هذا الجهاز.",
+            "local_backup" to "النسخ الاحتياطي المحلي",
+            "last_backup" to "آخر نسخة احتياطية",
+            "back_up" to "نسخ احتياطي",
+            "restore" to "استرداد",
+            "export_media_zip" to "تصدير ملفات الوسائط (ZIP)"
         )
     )
 
