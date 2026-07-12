@@ -414,6 +414,24 @@ fun getBloodSugarStatusColor(value: Float, category: String, unit: String = "mg/
     }
 }
 
+fun getBloodSugarReferenceRange(category: String, unit: String): String {
+    val mmol = unit == "mmol/L"
+    return when (category.lowercase(Locale.US)) {
+        "fasting" -> if (mmol)
+            "LOW <3.9 | NORMAL 3.9–5.5 | PRE-DM 5.6–6.9 | DM ≥7.0 mmol/L"
+        else
+            "LOW <70 | NORMAL 70–99 | PRE-DM 100–125 | DM ≥126 mg/dL"
+        "post-prandial", "after meal", "after breakfast", "after lunch", "after dinner" -> if (mmol)
+            "LOW <3.9 | NORMAL 3.9–7.7 | PRE-DM 7.8–11.0 | DM ≥11.1 mmol/L"
+        else
+            "LOW <70 | NORMAL 70–139 | PRE-DM 140–199 | DM ≥200 mg/dL"
+        else -> if (mmol)
+            "LOW <3.9 | NORMAL 3.9–7.7 | HIGH ≥7.8 mmol/L"
+        else
+            "LOW <70 | NORMAL 70–139 | HIGH ≥140 mg/dL"
+    }
+}
+
 // ==========================================
 // 2. TRACK SCREEN (Minds Screenshot 3)
 // ==========================================
@@ -865,6 +883,12 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
                                 }
                             }
                             Text(record.category, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                text = getBloodSugarReferenceRange(record.category, record.unit),
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+                                lineHeight = 14.sp
+                            )
                             if (record.notes.isNotEmpty()) {
                                 Text(record.notes, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f))
                             }
@@ -940,6 +964,27 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
                                     Text(cat, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (isSelected) SlateDarkBg else MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
+                        }
+                    }
+                    // Reference range hint — updates live with unit/category selection
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = HighlightTeal.copy(alpha = 0.08f)),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth().padding(10.dp)) {
+                            Text(
+                                text = "Reference ranges (${unitSelection})",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = HighlightTeal
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = getBloodSugarReferenceRange(categorySelection, unitSelection),
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                lineHeight = 15.sp
+                            )
                         }
                     }
                     OutlinedTextField(
