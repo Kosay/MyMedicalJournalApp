@@ -124,5 +124,12 @@ data class FamilyMemberProfile(
     val relationship: String = "",
     val dateOfBirth: String = "",
     val bloodType: String = "",
-    val notes: String = ""
+    val notes: String = "",
+    val sex: String = "",
+    val chronicConditions: String = "",
+    val allergies: String = "",
+    val emergencyContactName: String = "",
+    val emergencyContactPhone: String = "",
+    val heightCm: Float = 0f,
+    val weightKg: Float = 0f
 )

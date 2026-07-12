@@ -21,6 +21,7 @@ import androidx.lifecycle.ViewModelProvider
 import com.example.ui.HealthViewModel
 import com.example.ui.HealthViewModelFactory
 import com.example.ui.screens.MainScreen
+import com.example.ui.screens.OnboardingScreen
 import com.example.ui.screens.SplashScreen
 import com.example.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.delay
@@ -56,15 +57,24 @@ class MainActivity : ComponentActivity() {
             }
 
             MyApplicationTheme(darkTheme = isDark) {
+                val lang by viewModel.language.collectAsState()
                 var showSplash by remember { mutableStateOf(true) }
+                var showOnboarding by remember { mutableStateOf(false) }
 
                 LaunchedEffect(Unit) {
                     delay(2800)
+                    showOnboarding = !viewModel.onboardingCompleted
                     showSplash = false
                 }
 
                 if (showSplash) {
                     SplashScreen(onTimeout = { showSplash = false })
+                } else if (showOnboarding) {
+                    OnboardingScreen(
+                        viewModel = viewModel,
+                        lang = lang,
+                        onFinished = { showOnboarding = false }
+                    )
                 } else {
                     MainScreen(viewModel = viewModel)
                 }

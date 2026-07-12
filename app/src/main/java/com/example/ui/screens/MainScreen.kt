@@ -244,8 +244,8 @@ fun DashboardScreen(viewModel: HealthViewModel, lang: String) {
             val sugarVal = sugarLatest?.value ?: 95f
             val sugarCat = sugarLatest?.category ?: "Fasting"
             val sugarUnit = sugarLatest?.unit ?: "mg/dL"
-            val sugarStatus = getBloodSugarStatus(sugarVal, sugarCat, lang)
-            val sugarColor = getBloodSugarStatusColor(sugarVal, sugarCat)
+            val sugarStatus = getBloodSugarStatus(sugarVal, sugarCat, lang, sugarUnit)
+            val sugarColor = getBloodSugarStatusColor(sugarVal, sugarCat, sugarUnit)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 DashboardCard(
                     title = trans("blood_sugar"),
@@ -355,57 +355,59 @@ fun getBloodPressureStatusColor(systolic: Int, diastolic: Int): Color {
 }
 
 // Helpers for Blood Sugar Classifications
-fun getBloodSugarStatus(value: Float, category: String, lang: String): String {
+fun getBloodSugarStatus(value: Float, category: String, lang: String, unit: String = "mg/dL"): String {
+    val mgDl = if (unit == "mmol/L") value * 18.018f else value
     val en = lang == "en"
     return when (category.lowercase(Locale.US)) {
         "fasting" -> {
             when {
-                value < 70 -> if (en) "LOW" else "منخفض"
-                value < 100 -> if (en) "NORMAL" else "طبيعي"
-                value < 126 -> if (en) "PREDIABETIC" else "مرحلة ما قبل السكري"
+                mgDl < 70 -> if (en) "LOW" else "منخفض"
+                mgDl < 100 -> if (en) "NORMAL" else "طبيعي"
+                mgDl < 126 -> if (en) "PREDIABETIC" else "مرحلة ما قبل السكري"
                 else -> if (en) "DIABETIC" else "مرتفع (سكري)"
             }
         }
         "post-prandial", "after meal", "after breakfast", "after lunch", "after dinner" -> {
             when {
-                value < 70 -> if (en) "LOW" else "منخفض"
-                value < 140 -> if (en) "NORMAL" else "طبيعي"
-                value < 200 -> if (en) "PREDIABETIC" else "مرحلة ما قبل السكري"
+                mgDl < 70 -> if (en) "LOW" else "منخفض"
+                mgDl < 140 -> if (en) "NORMAL" else "طبيعي"
+                mgDl < 200 -> if (en) "PREDIABETIC" else "مرحلة ما قبل السكري"
                 else -> if (en) "DIABETIC" else "مرتفع (سكري)"
             }
         }
         else -> {
             when {
-                value < 70 -> if (en) "LOW" else "منخفض"
-                value < 140 -> if (en) "NORMAL" else "طبيعي"
+                mgDl < 70 -> if (en) "LOW" else "منخفض"
+                mgDl < 140 -> if (en) "NORMAL" else "طبيعي"
                 else -> if (en) "HIGH" else "مرتفع"
             }
         }
     }
 }
 
-fun getBloodSugarStatusColor(value: Float, category: String): Color {
+fun getBloodSugarStatusColor(value: Float, category: String, unit: String = "mg/dL"): Color {
+    val mgDl = if (unit == "mmol/L") value * 18.018f else value
     return when (category.lowercase(Locale.US)) {
         "fasting" -> {
             when {
-                value < 70 -> AlertRed
-                value < 100 -> HighlightTeal
-                value < 126 -> WarningYellow
+                mgDl < 70 -> AlertRed
+                mgDl < 100 -> HighlightTeal
+                mgDl < 126 -> WarningYellow
                 else -> AlertRed
             }
         }
         "post-prandial", "after meal", "after breakfast", "after lunch", "after dinner" -> {
             when {
-                value < 70 -> AlertRed
-                value < 140 -> HighlightTeal
-                value < 200 -> WarningYellow
+                mgDl < 70 -> AlertRed
+                mgDl < 140 -> HighlightTeal
+                mgDl < 200 -> WarningYellow
                 else -> AlertRed
             }
         }
         else -> {
             when {
-                value < 70 -> AlertRed
-                value < 140 -> HighlightTeal
+                mgDl < 70 -> AlertRed
+                mgDl < 140 -> HighlightTeal
                 else -> AlertRed
             }
         }
@@ -798,6 +800,8 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
     var sugarStr by remember { mutableStateOf("") }
     var categorySelection by remember { mutableStateOf("Fasting") }
     val categories = listOf("Fasting", "Post-Prandial", "Random", "Bedtime")
+    var unitSelection by remember { mutableStateOf("mg/dL") }
+    val units = listOf("mg/dL", "mmol/L")
     var notesStr by remember { mutableStateOf("") }
     var customTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
     val context = LocalContext.current
@@ -830,8 +834,8 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(records) { record ->
-                val statusString = getBloodSugarStatus(record.value, record.category, lang)
-                val statusColor = getBloodSugarStatusColor(record.value, record.category)
+                val statusString = getBloodSugarStatus(record.value, record.category, lang, record.unit)
+                val statusColor = getBloodSugarStatusColor(record.value, record.category, record.unit)
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
@@ -870,6 +874,7 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
                             IconButton(onClick = {
                                 editingRecord = record
                                 sugarStr = record.value.toString()
+                                unitSelection = record.unit.ifEmpty { "mg/dL" }
                                 categorySelection = record.category
                                 notesStr = record.notes
                                 customTimestamp = record.timestamp
@@ -903,10 +908,25 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
                     )
                     OutlinedTextField(
                         value = sugarStr, onValueChange = { sugarStr = it },
-                        label = { Text("Blood Sugar (mg/dL)") },
+                        label = { Text("Blood Sugar Value") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Text("Unit", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        units.forEach { u ->
+                            val isSelected = unitSelection == u
+                            Card(
+                                modifier = Modifier.weight(1f).clickable { unitSelection = u },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = CardDefaults.cardColors(containerColor = if (isSelected) HighlightTeal else MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+                                    Text(u, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (isSelected) SlateDarkBg else MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
                     Text("Measurement Type / Category", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         categories.forEach { cat ->
@@ -935,9 +955,9 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
                                 val s = sugarStr.toFloatOrNull() ?: 100f
                                 val rec = editingRecord
                                 if (rec != null) {
-                                    viewModel.updateBloodSugar(rec.copy(value = s, category = categorySelection, notes = notesStr, timestamp = customTimestamp))
+                                    viewModel.updateBloodSugar(rec.copy(value = s, unit = unitSelection, category = categorySelection, notes = notesStr, timestamp = customTimestamp))
                                 } else {
-                                    viewModel.addBloodSugar(s, categorySelection, notesStr, customTimestamp)
+                                    viewModel.addBloodSugar(s, unitSelection, categorySelection, notesStr, customTimestamp)
                                 }
                                 showDialog = false; editingRecord = null
                                 sugarStr = ""; notesStr = ""
@@ -2646,6 +2666,7 @@ fun SearchMatchRow(title: String, text: String, date: String) {
 // AI Health Assistant View (Supports Gemini, OpenAI, DeepSeek per settings selection!)
 @Composable
 fun FamilyMembersView(viewModel: HealthViewModel, lang: String) {
+    fun trans(key: String) = LocalStrings.get(key, lang)
     val members by viewModel.familyMembers.collectAsState()
     var showDialog by remember { mutableStateOf(false) }
     var editingMember by remember { mutableStateOf<com.example.data.FamilyMemberProfile?>(null) }
@@ -2653,24 +2674,34 @@ fun FamilyMembersView(viewModel: HealthViewModel, lang: String) {
     var relStr by remember { mutableStateOf("") }
     var dobStr by remember { mutableStateOf("") }
     var bloodStr by remember { mutableStateOf("") }
+    var sexStr by remember { mutableStateOf("") }
+    var conditionsStr by remember { mutableStateOf("") }
+    var allergiesStr by remember { mutableStateOf("") }
+    var contactNameStr by remember { mutableStateOf("") }
+    var contactPhoneStr by remember { mutableStateOf("") }
+    var heightStr by remember { mutableStateOf("") }
+    var weightStr by remember { mutableStateOf("") }
     var notesStr by remember { mutableStateOf("") }
+    val bloodTypes = listOf("A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-")
+
+    fun resetDialog() {
+        nameStr = ""; relStr = ""; dobStr = ""; bloodStr = ""; sexStr = ""
+        conditionsStr = ""; allergiesStr = ""; contactNameStr = ""; contactPhoneStr = ""
+        heightStr = ""; weightStr = ""; notesStr = ""
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Button(
-            onClick = {
-                editingMember = null
-                nameStr = ""; relStr = ""; dobStr = ""; bloodStr = ""; notesStr = ""
-                showDialog = true
-            },
+            onClick = { editingMember = null; resetDialog(); showDialog = true },
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
         ) {
-            Text("Add Family Member", color = SlateDarkBg, fontWeight = FontWeight.Bold)
+            Text(trans("add") + " " + trans("family_members"), color = SlateDarkBg, fontWeight = FontWeight.Bold)
         }
 
         if (members.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No family members yet.\nTap + to add one.", textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(trans("no_records"), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         } else {
             LazyColumn(
@@ -2682,19 +2713,31 @@ fun FamilyMembersView(viewModel: HealthViewModel, lang: String) {
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                     ) {
-                        Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Column(modifier = Modifier.weight(1f)) {
+                        Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(m.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
                                 if (m.relationship.isNotEmpty()) Text(m.relationship, fontSize = 13.sp, color = HighlightTeal)
-                                if (m.dateOfBirth.isNotEmpty()) Text("DOB: ${m.dateOfBirth}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                if (m.bloodType.isNotEmpty()) Text("Blood: ${m.bloodType}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                if (m.notes.isNotEmpty()) Text(m.notes, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f))
+                                if (m.sex.isNotEmpty()) Text(trans("sex") + ": " + m.sex, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (m.dateOfBirth.isNotEmpty()) Text(trans("date_of_birth") + ": " + m.dateOfBirth, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (m.bloodType.isNotEmpty()) Text(trans("blood_type") + ": " + m.bloodType, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (m.heightCm > 0f) Text(trans("height_cm") + ": ${m.heightCm.toInt()} cm", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (m.weightKg > 0f) Text(trans("weight_kg") + ": ${m.weightKg} kg", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (m.chronicConditions.isNotEmpty()) Text(trans("chronic_conditions") + ": " + m.chronicConditions, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f))
+                                if (m.allergies.isNotEmpty()) Text(trans("allergies") + ": " + m.allergies, fontSize = 11.sp, color = AlertRed.copy(alpha = 0.85f))
+                                if (m.emergencyContactName.isNotEmpty()) Text(trans("emergency_contact") + ": " + m.emergencyContactName, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f))
+                                if (m.emergencyContactPhone.isNotEmpty()) Text(trans("emergency_phone") + ": " + m.emergencyContactPhone, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f))
+                                if (m.notes.isNotEmpty()) Text(m.notes, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
                             }
                             Row {
                                 IconButton(onClick = {
                                     editingMember = m
                                     nameStr = m.name; relStr = m.relationship; dobStr = m.dateOfBirth
-                                    bloodStr = m.bloodType; notesStr = m.notes
+                                    bloodStr = m.bloodType; sexStr = m.sex; conditionsStr = m.chronicConditions
+                                    allergiesStr = m.allergies; contactNameStr = m.emergencyContactName
+                                    contactPhoneStr = m.emergencyContactPhone
+                                    heightStr = if (m.heightCm > 0f) m.heightCm.toInt().toString() else ""
+                                    weightStr = if (m.weightKg > 0f) m.weightKg.toString() else ""
+                                    notesStr = m.notes
                                     showDialog = true
                                 }) {
                                     Icon(Icons.Default.Edit, contentDescription = "Edit", tint = HighlightTeal)
@@ -2712,31 +2755,100 @@ fun FamilyMembersView(viewModel: HealthViewModel, lang: String) {
 
     if (showDialog) {
         Dialog(onDismissRequest = { showDialog = false; editingMember = null }) {
-            Card(modifier = Modifier.fillMaxWidth().padding(16.dp), shape = RoundedCornerShape(16.dp)) {
-                Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(if (editingMember != null) "Edit Member" else "Add Family Member", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    OutlinedTextField(value = nameStr, onValueChange = { nameStr = it }, label = { Text("Full Name *") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = relStr, onValueChange = { relStr = it }, label = { Text("Relationship (e.g. Son, Spouse)") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = dobStr, onValueChange = { dobStr = it }, label = { Text("Date of Birth (YYYY-MM-DD)") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = bloodStr, onValueChange = { bloodStr = it }, label = { Text("Blood Type") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = notesStr, onValueChange = { notesStr = it }, label = { Text("Health Notes") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+            Card(modifier = Modifier.fillMaxWidth().padding(8.dp), shape = RoundedCornerShape(16.dp)) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(if (editingMember != null) "Edit Member" else trans("add") + " " + trans("family_members"), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+
+                    OutlinedTextField(value = nameStr, onValueChange = { nameStr = it }, label = { Text(trans("full_name") + " *") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = relStr, onValueChange = { relStr = it }, label = { Text(trans("relationship")) }, modifier = Modifier.fillMaxWidth())
+
+                    Text(trans("sex"), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(trans("male"), trans("female")).forEach { s ->
+                            val sel = sexStr == s
+                            Card(
+                                modifier = Modifier.weight(1f).clickable { sexStr = s },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = CardDefaults.cardColors(containerColor = if (sel) HighlightTeal else MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+                                    Text(s, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (sel) SlateDarkBg else MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(value = dobStr, onValueChange = { dobStr = it }, label = { Text(trans("date_of_birth") + " (DD/MM/YYYY)") }, modifier = Modifier.fillMaxWidth())
+
+                    Text(trans("blood_type_select"), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        bloodTypes.take(4).forEach { bt ->
+                            val sel = bloodStr == bt
+                            Card(modifier = Modifier.weight(1f).clickable { bloodStr = bt }, shape = RoundedCornerShape(6.dp),
+                                colors = CardDefaults.cardColors(containerColor = if (sel) HighlightTeal else MaterialTheme.colorScheme.surfaceVariant)) {
+                                Box(Modifier.fillMaxWidth().padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
+                                    Text(bt, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (sel) SlateDarkBg else MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        bloodTypes.drop(4).forEach { bt ->
+                            val sel = bloodStr == bt
+                            Card(modifier = Modifier.weight(1f).clickable { bloodStr = bt }, shape = RoundedCornerShape(6.dp),
+                                colors = CardDefaults.cardColors(containerColor = if (sel) HighlightTeal else MaterialTheme.colorScheme.surfaceVariant)) {
+                                Box(Modifier.fillMaxWidth().padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
+                                    Text(bt, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (sel) SlateDarkBg else MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(value = heightStr, onValueChange = { heightStr = it }, label = { Text(trans("height_cm")) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+                        OutlinedTextField(value = weightStr, onValueChange = { weightStr = it }, label = { Text(trans("weight_kg")) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+                    }
+
+                    OutlinedTextField(value = conditionsStr, onValueChange = { conditionsStr = it }, label = { Text(trans("chronic_conditions")) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = allergiesStr, onValueChange = { allergiesStr = it }, label = { Text(trans("allergies")) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = contactNameStr, onValueChange = { contactNameStr = it }, label = { Text(trans("emergency_contact")) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = contactPhoneStr, onValueChange = { contactPhoneStr = it }, label = { Text(trans("emergency_phone")) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = notesStr, onValueChange = { notesStr = it }, label = { Text(trans("notes")) }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton(onClick = { showDialog = false; editingMember = null }) { Text("Cancel") }
+                        TextButton(onClick = { showDialog = false; editingMember = null }) { Text(trans("cancel")) }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = {
                                 if (nameStr.trim().isNotEmpty()) {
+                                    val ht = heightStr.toFloatOrNull() ?: 0f
+                                    val wt = weightStr.toFloatOrNull() ?: 0f
                                     val existing = editingMember
                                     if (existing != null) {
-                                        viewModel.updateFamilyMember(existing.copy(name = nameStr, relationship = relStr, dateOfBirth = dobStr, bloodType = bloodStr, notes = notesStr))
+                                        viewModel.updateFamilyMember(existing.copy(
+                                            name = nameStr, relationship = relStr, dateOfBirth = dobStr,
+                                            bloodType = bloodStr, notes = notesStr, sex = sexStr,
+                                            chronicConditions = conditionsStr, allergies = allergiesStr,
+                                            emergencyContactName = contactNameStr, emergencyContactPhone = contactPhoneStr,
+                                            heightCm = ht, weightKg = wt
+                                        ))
                                     } else {
-                                        viewModel.addFamilyMember(nameStr, relStr, dobStr, bloodStr, notesStr)
+                                        viewModel.addFamilyMember(
+                                            nameStr, relStr, dobStr, bloodStr, notesStr,
+                                            sexStr, conditionsStr, allergiesStr, contactNameStr, contactPhoneStr, ht, wt
+                                        )
                                     }
                                     showDialog = false; editingMember = null
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
-                        ) { Text(if (editingMember != null) "Update" else "Save", color = SlateDarkBg) }
+                        ) { Text(if (editingMember != null) trans("save") else trans("add"), color = SlateDarkBg) }
                     }
                 }
             }

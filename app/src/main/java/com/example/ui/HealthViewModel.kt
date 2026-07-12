@@ -349,17 +349,18 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
 
 
     // --- Database Operations ---
-    fun addBloodSugar(value: Float, category: String, notes: String, timestamp: Long = System.currentTimeMillis()) {
+    fun addBloodSugar(value: Float, unit: String = "mg/dL", category: String, notes: String, timestamp: Long = System.currentTimeMillis()) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertBloodSugar(
                 BloodSugarRecord(
                     value = value,
+                    unit = unit,
                     category = category,
                     notes = notes,
                     timestamp = timestamp
                 )
             )
-            evaluateBloodSugarDanger(normalizeBloodSugarToMgDl(value, "mg/dL"))
+            evaluateBloodSugarDanger(normalizeBloodSugarToMgDl(value, unit))
         }
     }
 
@@ -634,11 +635,39 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch(Dispatchers.IO) { repository.deleteMedicationDose(record) }
     }
 
+    // --- Onboarding ---
+    val onboardingCompleted: Boolean get() = sharedPrefs.getBoolean("onboarding_completed", false)
+
+    fun completeOnboarding(info: EmergencyInfo, heightCm: Float, weightKg: Float) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertEmergencyInfo(info)
+            if (weightKg > 0f) {
+                repository.insertWeight(WeightRecord(weightKg = weightKg, timestamp = System.currentTimeMillis(), notes = "Initial weight"))
+            }
+        }
+        sharedPrefs.edit()
+            .putBoolean("onboarding_completed", true)
+            .putFloat("heightCm", heightCm)
+            .apply()
+        _emergencyInfo.value = info
+    }
+
     // --- Family Members ---
-    fun addFamilyMember(name: String, relationship: String, dateOfBirth: String, bloodType: String, notes: String) {
+    fun addFamilyMember(
+        name: String, relationship: String, dateOfBirth: String, bloodType: String, notes: String,
+        sex: String = "", chronicConditions: String = "", allergies: String = "",
+        emergencyContactName: String = "", emergencyContactPhone: String = "",
+        heightCm: Float = 0f, weightKg: Float = 0f
+    ) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertFamilyMember(
-                FamilyMemberProfile(name = name, relationship = relationship, dateOfBirth = dateOfBirth, bloodType = bloodType, notes = notes)
+                FamilyMemberProfile(
+                    name = name, relationship = relationship, dateOfBirth = dateOfBirth,
+                    bloodType = bloodType, notes = notes, sex = sex,
+                    chronicConditions = chronicConditions, allergies = allergies,
+                    emergencyContactName = emergencyContactName, emergencyContactPhone = emergencyContactPhone,
+                    heightCm = heightCm, weightKg = weightKg
+                )
             )
         }
     }
