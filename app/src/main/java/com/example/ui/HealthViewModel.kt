@@ -33,6 +33,16 @@ import java.util.zip.ZipOutputStream
 import android.util.Base64
 import java.security.MessageDigest
 import java.security.SecureRandom
+import android.app.NotificationManager
+import android.os.Build
+import androidx.core.app.NotificationCompat
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import com.example.MedicalJournalApp
+import com.example.workers.HealthAlertsWorker
+import com.example.workers.MedicationReminderWorker
+import java.util.concurrent.TimeUnit
 
 class HealthViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as MedicalJournalApp
@@ -92,6 +102,102 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
 
     companion object {
         const val DEFAULT_GOOGLE_CLIENT_ID = "1046908332468-bgcrp7ve4776u26j5it93fef6n6hco2q.apps.googleusercontent.com"
+        private const val NOTIF_ID_DANGER = 1000
+    }
+
+    // --- Danger alerts ---
+    private val _dangerAlert = MutableStateFlow<DangerAlert?>(null)
+    val dangerAlert: StateFlow<DangerAlert?> = _dangerAlert.asStateFlow()
+
+    fun dismissDangerAlert() { _dangerAlert.value = null }
+
+    private fun evaluateBpDanger(systolic: Int, diastolic: Int, heartRate: Int) {
+        _dangerAlert.value = when {
+            systolic >= 180 || diastolic >= 120 -> DangerAlert(
+                DangerSeverity.CRISIS, "Hypertensive Crisis",
+                "BP at $systolic/$diastolic mmHg is a medical emergency. Seek emergency care immediately."
+            )
+            systolic >= 140 || diastolic >= 90 -> DangerAlert(
+                DangerSeverity.HIGH, "Stage 2 High Blood Pressure",
+                "BP at $systolic/$diastolic mmHg is very high. Contact your doctor today."
+            )
+            systolic < 90 || diastolic < 60 -> DangerAlert(
+                DangerSeverity.WARNING, "Low Blood Pressure",
+                "BP at $systolic/$diastolic mmHg is low. Rest and monitor for dizziness or fainting."
+            )
+            heartRate > 130 -> DangerAlert(
+                DangerSeverity.WARNING, "Elevated Heart Rate",
+                "Heart rate at $heartRate bpm is high. If at rest, contact your doctor."
+            )
+            heartRate < 45 -> DangerAlert(
+                DangerSeverity.WARNING, "Low Heart Rate",
+                "Heart rate at $heartRate bpm is very low. If at rest, consult your doctor."
+            )
+            else -> null
+        }
+        _dangerAlert.value?.let { sendDangerNotification(it) }
+    }
+
+    private fun evaluateBloodSugarDanger(valueMgDl: Float) {
+        _dangerAlert.value = when {
+            valueMgDl < 70f -> DangerAlert(
+                DangerSeverity.CRISIS, "Hypoglycemia",
+                "Blood sugar at ${valueMgDl.toInt()} mg/dL is dangerously low. Consume fast-acting glucose immediately."
+            )
+            valueMgDl > 250f -> DangerAlert(
+                DangerSeverity.HIGH, "Very High Blood Sugar",
+                "Blood sugar at ${valueMgDl.toInt()} mg/dL is very high. Check for ketones and contact your doctor."
+            )
+            valueMgDl > 180f -> DangerAlert(
+                DangerSeverity.WARNING, "Elevated Blood Sugar",
+                "Blood sugar at ${valueMgDl.toInt()} mg/dL is above target range. Review recent meals and medication."
+            )
+            else -> null
+        }
+        _dangerAlert.value?.let { sendDangerNotification(it) }
+    }
+
+    private fun sendDangerNotification(alert: DangerAlert) {
+        val ctx = getApplication<Application>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val nm = ctx.getSystemService(NotificationManager::class.java)
+            if (!nm.areNotificationsEnabled()) return
+        }
+        val notification = NotificationCompat.Builder(ctx, MedicalJournalApp.CHANNEL_ALERTS)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle(alert.title)
+            .setContentText(alert.message)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(alert.message))
+            .setPriority(
+                if (alert.severity == DangerSeverity.CRISIS) NotificationCompat.PRIORITY_MAX
+                else NotificationCompat.PRIORITY_HIGH
+            )
+            .setAutoCancel(true)
+            .build()
+        val nm = ctx.getSystemService(NotificationManager::class.java)
+        nm.notify(NOTIF_ID_DANGER, notification)
+    }
+
+    fun scheduleDailyPatternCheck() {
+        val request = PeriodicWorkRequestBuilder<HealthAlertsWorker>(1, TimeUnit.DAYS)
+            .build()
+        WorkManager.getInstance(getApplication())
+            .enqueueUniquePeriodicWork(
+                HealthAlertsWorker.WORK_NAME,
+                ExistingPeriodicWorkPolicy.KEEP,
+                request
+            )
+    }
+
+    fun scheduleMedicationReminder() {
+        val request = PeriodicWorkRequestBuilder<MedicationReminderWorker>(1, TimeUnit.DAYS)
+            .build()
+        WorkManager.getInstance(getApplication())
+            .enqueueUniquePeriodicWork(
+                MedicationReminderWorker.WORK_NAME,
+                ExistingPeriodicWorkPolicy.KEEP,
+                request
+            )
     }
 
     private val _googleAccountEmail = MutableStateFlow(sharedPrefs.getString("google_account_email", "") ?: "")
@@ -138,6 +244,31 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
 
     val bloodSugarRecords: StateFlow<List<BloodSugarRecord>> = repository.allBloodSugar
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val moodRecords: StateFlow<List<MoodRecord>> = repository.allMoods
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val medicationDoses: StateFlow<List<MedicationDoseRecord>> = repository.allMedicationDoses
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val familyMembers: StateFlow<List<FamilyMemberProfile>> = repository.allFamilyMembers
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Water goal (ml/day) stored in SharedPrefs
+    private val _waterGoalMl = MutableStateFlow(sharedPrefs.getInt("waterGoalMl", 2000))
+    val waterGoalMl: StateFlow<Int> = _waterGoalMl.asStateFlow()
+
+    fun updateWaterGoal(ml: Int) {
+        _waterGoalMl.value = ml
+        sharedPrefs.edit().putInt("waterGoalMl", ml).apply()
+    }
+
+    // Weekly AI narrative
+    private val _weeklyNarrative = MutableStateFlow("")
+    val weeklyNarrative: StateFlow<String> = _weeklyNarrative.asStateFlow()
+
+    private val _weeklyNarrativeLoading = MutableStateFlow(false)
+    val weeklyNarrativeLoading: StateFlow<Boolean> = _weeklyNarrativeLoading.asStateFlow()
 
     // --- Blood Pressure pattern analysis (sleep, smoking, activity correlation) ---
     val bpCorrelationData: StateFlow<BpCorrelationData> = combine(
@@ -218,16 +349,18 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
 
 
     // --- Database Operations ---
-    fun addBloodSugar(value: Float, category: String, notes: String, timestamp: Long = System.currentTimeMillis()) {
+    fun addBloodSugar(value: Float, unit: String = "mg/dL", category: String, notes: String, timestamp: Long = System.currentTimeMillis()) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertBloodSugar(
                 BloodSugarRecord(
                     value = value,
+                    unit = unit,
                     category = category,
                     notes = notes,
                     timestamp = timestamp
                 )
             )
+            evaluateBloodSugarDanger(normalizeBloodSugarToMgDl(value, unit))
         }
     }
 
@@ -240,6 +373,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
     fun updateBloodSugar(record: BloodSugarRecord) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertBloodSugar(record)
+            evaluateBloodSugarDanger(normalizeBloodSugarToMgDl(record.value, record.unit))
         }
     }
 
@@ -254,6 +388,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                     notes = notes
                 )
             )
+            evaluateBpDanger(systolic, diastolic, heartRate)
         }
     }
 
@@ -266,6 +401,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
     fun updateBloodPressure(record: BloodPressureRecord) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertBloodPressure(record)
+            evaluateBpDanger(record.systolic, record.diastolic, record.heartRate)
         }
     }
 
@@ -449,7 +585,9 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         allergies: String,
         contactName: String,
         contactPhone: String,
-        additionalNotes: String
+        additionalNotes: String,
+        sex: String,
+        numberOfChildren: Int
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertEmergencyInfo(
@@ -460,9 +598,177 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                     allergies = allergies,
                     contactName = contactName,
                     contactPhone = contactPhone,
-                    additionalNotes = additionalNotes
+                    additionalNotes = additionalNotes,
+                    sex = sex,
+                    numberOfChildren = numberOfChildren
                 )
             )
+        }
+    }
+
+    // --- Mood ---
+    fun addMood(score: Int, notes: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertMood(MoodRecord(score = score, notes = notes))
+        }
+    }
+
+    fun deleteMood(record: MoodRecord) {
+        viewModelScope.launch(Dispatchers.IO) { repository.deleteMood(record) }
+    }
+
+    // --- Medication Dose Log ---
+    fun logMedicationDose(medication: com.example.data.MedicationRecord, taken: Boolean, notes: String = "") {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertMedicationDose(
+                MedicationDoseRecord(
+                    medicationId = medication.id,
+                    medicationName = medication.name,
+                    taken = taken,
+                    notes = notes
+                )
+            )
+        }
+    }
+
+    fun deleteMedicationDose(record: MedicationDoseRecord) {
+        viewModelScope.launch(Dispatchers.IO) { repository.deleteMedicationDose(record) }
+    }
+
+    // --- Onboarding ---
+    val onboardingCompleted: Boolean get() = sharedPrefs.getBoolean("onboarding_completed", false)
+
+    fun completeOnboarding(info: EmergencyInfo, heightCm: Float, weightKg: Float) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertEmergencyInfo(info)
+            if (weightKg > 0f) {
+                repository.insertWeight(WeightRecord(weightKg = weightKg, timestamp = System.currentTimeMillis(), notes = "Initial weight"))
+            }
+        }
+        sharedPrefs.edit()
+            .putBoolean("onboarding_completed", true)
+            .putFloat("heightCm", heightCm)
+            .apply()
+        _emergencyInfo.value = info
+    }
+
+    // --- Family Members ---
+    fun addFamilyMember(
+        name: String, relationship: String, dateOfBirth: String, bloodType: String, notes: String,
+        sex: String = "", chronicConditions: String = "", allergies: String = "",
+        emergencyContactName: String = "", emergencyContactPhone: String = "",
+        heightCm: Float = 0f, weightKg: Float = 0f
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertFamilyMember(
+                FamilyMemberProfile(
+                    name = name, relationship = relationship, dateOfBirth = dateOfBirth,
+                    bloodType = bloodType, notes = notes, sex = sex,
+                    chronicConditions = chronicConditions, allergies = allergies,
+                    emergencyContactName = emergencyContactName, emergencyContactPhone = emergencyContactPhone,
+                    heightCm = heightCm, weightKg = weightKg
+                )
+            )
+        }
+    }
+
+    fun updateFamilyMember(profile: FamilyMemberProfile) {
+        viewModelScope.launch(Dispatchers.IO) { repository.insertFamilyMember(profile) }
+    }
+
+    fun deleteFamilyMember(profile: FamilyMemberProfile) {
+        viewModelScope.launch(Dispatchers.IO) { repository.deleteFamilyMember(profile) }
+    }
+
+    // --- Weekly AI Health Narrative ---
+    fun generateWeeklyNarrative() {
+        var key = _apiKey.value
+        val provider = _aiProvider.value
+        val model = _modelName.value
+
+        if (key.isEmpty() && provider == "Gemini") {
+            key = try {
+                val field = BuildConfig::class.java.getField("GEMINI_API_KEY")
+                field.get(null) as? String ?: ""
+            } catch (e: Exception) { "" }
+        }
+
+        if (key.isEmpty()) {
+            _weeklyNarrative.value = "Please configure your API key in Settings to generate a weekly health summary."
+            return
+        }
+
+        _weeklyNarrativeLoading.value = true
+        _weeklyNarrative.value = ""
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val weekMs = 7L * 24 * 3600 * 1000
+                val since = System.currentTimeMillis() - weekMs
+                val sb = StringBuilder()
+
+                sb.append("WEEKLY HEALTH SUMMARY (Last 7 Days):\n\n")
+
+                val bpList = bloodPressureRecords.value.filter { it.timestamp >= since }
+                if (bpList.isNotEmpty()) {
+                    val avgSys = bpList.map { it.systolic }.average()
+                    val avgDia = bpList.map { it.diastolic }.average()
+                    val avgHr = bpList.map { it.heartRate }.average()
+                    sb.append("Blood Pressure (${bpList.size} readings): Avg ${avgSys.toInt()}/${avgDia.toInt()} mmHg, HR ${avgHr.toInt()} bpm\n")
+                }
+
+                val sugarList = bloodSugarRecords.value.filter { it.timestamp >= since }
+                if (sugarList.isNotEmpty()) {
+                    val avg = sugarList.map { normalizeBloodSugarToMgDl(it.value, it.unit) }.average()
+                    sb.append("Blood Sugar (${sugarList.size} readings): Avg ${avg.toInt()} mg/dL\n")
+                }
+
+                val weightList = weightRecords.value.filter { it.timestamp >= since }
+                if (weightList.isNotEmpty()) {
+                    sb.append("Weight: ${weightList.last().weightKg} kg → ${weightList.first().weightKg} kg (${weightList.size} entries)\n")
+                }
+
+                val sleepList = sleepRecords.value.filter { it.timestamp >= since }
+                if (sleepList.isNotEmpty()) {
+                    val avg = sleepList.map { it.hours }.average()
+                    sb.append("Sleep: Avg ${String.format(Locale.US, "%.1f", avg)} hours/night (${sleepList.size} nights)\n")
+                }
+
+                val moodList = moodRecords.value.filter { it.timestamp >= since }
+                if (moodList.isNotEmpty()) {
+                    val avg = moodList.map { it.score }.average()
+                    sb.append("Mood: Avg ${String.format(Locale.US, "%.1f", avg)}/5 (${moodList.size} logs)\n")
+                }
+
+                val activeMeds = medications.value.filter { it.isActive }
+                if (activeMeds.isNotEmpty()) {
+                    sb.append("Active Medications: ${activeMeds.joinToString { it.name }}\n")
+                }
+
+                val symptomList = symptoms.value.filter { it.timestamp >= since }
+                if (symptomList.isNotEmpty()) {
+                    sb.append("Symptoms this week: ${symptomList.joinToString { "${it.symptomName} (${it.severity})" }}\n")
+                }
+
+                val lifestyle = lifestyleRecords.value.filter { it.timestamp >= since }
+                val waterTotal = lifestyle.filter { it.type == "water" }.sumOf { it.amount.toDouble() }
+                val exerciseTotal = lifestyle.filter { it.type == "exercise" }.sumOf { it.amount.toDouble() }
+                if (waterTotal > 0) sb.append("Total water intake: ${waterTotal.toInt()} ml\n")
+                if (exerciseTotal > 0) sb.append("Total exercise: ${exerciseTotal.toInt()} minutes\n")
+
+                val prompt = "You are a personal health assistant. Analyze this patient's 7-day health data and write a warm, clear, 3-4 paragraph weekly health narrative. Highlight trends, improvements, concerns, and actionable suggestions. Always remind the user that this is informational only and not a medical diagnosis.\n\n${sb}"
+
+                val narrative = when (provider) {
+                    "Gemini" -> callGeminiAPI(key, model, prompt)
+                    "OpenAI", "DeepSeek" -> callChatCompletionsAPI(provider, key, model, prompt)
+                    else -> "Unsupported AI Provider"
+                }
+                _weeklyNarrative.value = narrative
+            } catch (e: Exception) {
+                _weeklyNarrative.value = "Error generating summary: ${e.localizedMessage}"
+            } finally {
+                _weeklyNarrativeLoading.value = false
+            }
         }
     }
 
@@ -790,6 +1096,9 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
             html.append("<div class='section-title'>Emergency Contact & Information</div>")
             html.append("<table>")
             html.append("<tr><td><strong>Full Name:</strong></td><td>${info.fullName}</td><td><strong>Blood Type:</strong></td><td><span class='badge badge-critical'>${info.bloodType}</span></td></tr>")
+            val sexLabel = if (info.sex.isNotEmpty()) info.sex else "Not specified"
+            val childrenLabel = if (info.sex == "Female") "${info.numberOfChildren}" else "N/A"
+            html.append("<tr><td><strong>Sex:</strong></td><td>$sexLabel</td><td><strong>Number of Children:</strong></td><td>$childrenLabel</td></tr>")
             html.append("<tr><td><strong>Chronic Conditions:</strong></td><td>${info.chronicConditions}</td><td><strong>Known Allergies:</strong></td><td>${info.allergies}</td></tr>")
             html.append("<tr><td><strong>Emergency Contact:</strong></td><td>${info.contactName}</td><td><strong>Contact Phone:</strong></td><td>${info.contactPhone}</td></tr>")
             if (info.additionalNotes.isNotEmpty()) {
@@ -1302,6 +1611,42 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
             })
         }
         root.put("lab_results", labArr)
+
+        emergencyInfo.value?.let { info ->
+            root.put("emergency_info", JSONObject().apply {
+                put("fullName", info.fullName)
+                put("bloodType", info.bloodType)
+                put("chronicConditions", info.chronicConditions)
+                put("allergies", info.allergies)
+                put("contactName", info.contactName)
+                put("contactPhone", info.contactPhone)
+                put("additionalNotes", info.additionalNotes)
+                put("sex", info.sex)
+                put("numberOfChildren", info.numberOfChildren)
+            })
+        }
+
+        val moodArr = JSONArray()
+        moodRecords.value.forEach {
+            moodArr.put(JSONObject().apply {
+                put("score", it.score)
+                put("notes", it.notes)
+                put("timestamp", it.timestamp)
+            })
+        }
+        root.put("mood_records", moodArr)
+
+        val familyArr = JSONArray()
+        familyMembers.value.forEach {
+            familyArr.put(JSONObject().apply {
+                put("name", it.name)
+                put("relationship", it.relationship)
+                put("dateOfBirth", it.dateOfBirth)
+                put("bloodType", it.bloodType)
+                put("notes", it.notes)
+            })
+        }
+        root.put("family_members", familyArr)
 
         return root.toString(2)
     }
@@ -1962,9 +2307,41 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                         chronicConditions = obj.optString("chronicConditions"),
                         contactName = obj.optString("contactName"),
                         contactPhone = obj.optString("contactPhone"),
-                        additionalNotes = obj.optString("additionalNotes")
+                        additionalNotes = obj.optString("additionalNotes"),
+                        sex = obj.optString("sex"),
+                        numberOfChildren = obj.optInt("numberOfChildren", 0)
                     )
                 )
+            }
+
+            // 9. Mood Records
+            root.optJSONArray("mood_records")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    repository.insertMood(
+                        MoodRecord(
+                            score = obj.optInt("score", 3),
+                            notes = obj.optString("notes"),
+                            timestamp = obj.optLong("timestamp", System.currentTimeMillis())
+                        )
+                    )
+                }
+            }
+
+            // 10. Family Members
+            root.optJSONArray("family_members")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    repository.insertFamilyMember(
+                        FamilyMemberProfile(
+                            name = obj.optString("name"),
+                            relationship = obj.optString("relationship"),
+                            dateOfBirth = obj.optString("dateOfBirth"),
+                            bloodType = obj.optString("bloodType"),
+                            notes = obj.optString("notes")
+                        )
+                    )
+                }
             }
 
             true
@@ -1974,6 +2351,14 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 }
+
+enum class DangerSeverity { CRISIS, HIGH, WARNING }
+
+data class DangerAlert(
+    val severity: DangerSeverity,
+    val title: String,
+    val message: String
+)
 
 data class BpCorrelationBucket(
     val label: String,

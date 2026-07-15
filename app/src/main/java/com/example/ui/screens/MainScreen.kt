@@ -49,6 +49,11 @@ import coil.compose.AsyncImage
 import com.example.data.*
 import com.example.ui.LocalStrings
 import com.example.ui.HealthViewModel
+import com.example.ui.DangerAlert
+import com.example.ui.DangerSeverity
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import com.example.ui.theme.*
 import java.util.*
 
@@ -239,8 +244,8 @@ fun DashboardScreen(viewModel: HealthViewModel, lang: String) {
             val sugarVal = sugarLatest?.value ?: 95f
             val sugarCat = sugarLatest?.category ?: "Fasting"
             val sugarUnit = sugarLatest?.unit ?: "mg/dL"
-            val sugarStatus = getBloodSugarStatus(sugarVal, sugarCat, lang)
-            val sugarColor = getBloodSugarStatusColor(sugarVal, sugarCat)
+            val sugarStatus = getBloodSugarStatus(sugarVal, sugarCat, lang, sugarUnit)
+            val sugarColor = getBloodSugarStatusColor(sugarVal, sugarCat, sugarUnit)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 DashboardCard(
                     title = trans("blood_sugar"),
@@ -350,60 +355,80 @@ fun getBloodPressureStatusColor(systolic: Int, diastolic: Int): Color {
 }
 
 // Helpers for Blood Sugar Classifications
-fun getBloodSugarStatus(value: Float, category: String, lang: String): String {
+fun getBloodSugarStatus(value: Float, category: String, lang: String, unit: String = "mg/dL"): String {
+    val mgDl = if (unit == "mmol/L") value * 18.018f else value
     val en = lang == "en"
     return when (category.lowercase(Locale.US)) {
         "fasting" -> {
             when {
-                value < 70 -> if (en) "LOW" else "منخفض"
-                value < 100 -> if (en) "NORMAL" else "طبيعي"
-                value < 126 -> if (en) "PREDIABETIC" else "مرحلة ما قبل السكري"
+                mgDl < 70 -> if (en) "LOW" else "منخفض"
+                mgDl < 100 -> if (en) "NORMAL" else "طبيعي"
+                mgDl < 126 -> if (en) "PREDIABETIC" else "مرحلة ما قبل السكري"
                 else -> if (en) "DIABETIC" else "مرتفع (سكري)"
             }
         }
         "post-prandial", "after meal", "after breakfast", "after lunch", "after dinner" -> {
             when {
-                value < 70 -> if (en) "LOW" else "منخفض"
-                value < 140 -> if (en) "NORMAL" else "طبيعي"
-                value < 200 -> if (en) "PREDIABETIC" else "مرحلة ما قبل السكري"
+                mgDl < 70 -> if (en) "LOW" else "منخفض"
+                mgDl < 140 -> if (en) "NORMAL" else "طبيعي"
+                mgDl < 200 -> if (en) "PREDIABETIC" else "مرحلة ما قبل السكري"
                 else -> if (en) "DIABETIC" else "مرتفع (سكري)"
             }
         }
         else -> {
             when {
-                value < 70 -> if (en) "LOW" else "منخفض"
-                value < 140 -> if (en) "NORMAL" else "طبيعي"
+                mgDl < 70 -> if (en) "LOW" else "منخفض"
+                mgDl < 140 -> if (en) "NORMAL" else "طبيعي"
                 else -> if (en) "HIGH" else "مرتفع"
             }
         }
     }
 }
 
-fun getBloodSugarStatusColor(value: Float, category: String): Color {
+fun getBloodSugarStatusColor(value: Float, category: String, unit: String = "mg/dL"): Color {
+    val mgDl = if (unit == "mmol/L") value * 18.018f else value
     return when (category.lowercase(Locale.US)) {
         "fasting" -> {
             when {
-                value < 70 -> AlertRed
-                value < 100 -> HighlightTeal
-                value < 126 -> WarningYellow
+                mgDl < 70 -> AlertRed
+                mgDl < 100 -> HighlightTeal
+                mgDl < 126 -> WarningYellow
                 else -> AlertRed
             }
         }
         "post-prandial", "after meal", "after breakfast", "after lunch", "after dinner" -> {
             when {
-                value < 70 -> AlertRed
-                value < 140 -> HighlightTeal
-                value < 200 -> WarningYellow
+                mgDl < 70 -> AlertRed
+                mgDl < 140 -> HighlightTeal
+                mgDl < 200 -> WarningYellow
                 else -> AlertRed
             }
         }
         else -> {
             when {
-                value < 70 -> AlertRed
-                value < 140 -> HighlightTeal
+                mgDl < 70 -> AlertRed
+                mgDl < 140 -> HighlightTeal
                 else -> AlertRed
             }
         }
+    }
+}
+
+fun getBloodSugarReferenceRange(category: String, unit: String): String {
+    val mmol = unit == "mmol/L"
+    return when (category.lowercase(Locale.US)) {
+        "fasting" -> if (mmol)
+            "LOW <3.9 | NORMAL 3.9–5.5 | PRE-DM 5.6–6.9 | DM ≥7.0 mmol/L"
+        else
+            "LOW <70 | NORMAL 70–99 | PRE-DM 100–125 | DM ≥126 mg/dL"
+        "post-prandial", "after meal", "after breakfast", "after lunch", "after dinner" -> if (mmol)
+            "LOW <3.9 | NORMAL 3.9–7.7 | PRE-DM 7.8–11.0 | DM ≥11.1 mmol/L"
+        else
+            "LOW <70 | NORMAL 70–139 | PRE-DM 140–199 | DM ≥200 mg/dL"
+        else -> if (mmol)
+            "LOW <3.9 | NORMAL 3.9–7.7 | HIGH ≥7.8 mmol/L"
+        else
+            "LOW <70 | NORMAL 70–139 | HIGH ≥140 mg/dL"
     }
 }
 
@@ -522,12 +547,66 @@ fun TrackMenuItemCard(title: String, onClick: () -> Unit) {
 }
 
 // ------------------------------------------
+// DANGER ALERT BANNER
+// ------------------------------------------
+@Composable
+fun DangerAlertBanner(alert: DangerAlert, onDismiss: () -> Unit) {
+    val (bgColor, borderColor) = when (alert.severity) {
+        DangerSeverity.CRISIS -> Color(0xFFFFCDD2) to Color(0xFFD32F2F)
+        DangerSeverity.HIGH   -> Color(0xFFFFE0B2) to Color(0xFFE65100)
+        DangerSeverity.WARNING -> Color(0xFFFFF9C4) to Color(0xFFF9A825)
+    }
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = bgColor),
+        shape = RoundedCornerShape(8.dp),
+        border = androidx.compose.foundation.BorderStroke(2.dp, borderColor)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Icon(
+                imageVector = Icons.Default.Warning,
+                contentDescription = null,
+                tint = borderColor,
+                modifier = Modifier.padding(top = 2.dp, end = 8.dp)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = alert.title,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = borderColor
+                )
+                Text(
+                    text = alert.message,
+                    fontSize = 13.sp,
+                    color = Color(0xFF333333)
+                )
+            }
+            IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Dismiss",
+                    tint = borderColor,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+    }
+}
+
+// ------------------------------------------
 // CATEGORY DETAILS VIEWS & INPUT OVERLAYS
 // ------------------------------------------
 @Composable
 fun BpDetailView(viewModel: HealthViewModel, lang: String) {
     val records by viewModel.bloodPressureRecords.collectAsState()
     val correlationData by viewModel.bpCorrelationData.collectAsState()
+    val dangerAlert by viewModel.dangerAlert.collectAsState()
     var showDialog by remember { mutableStateOf(false) }
     var editingRecord by remember { mutableStateOf<com.example.data.BloodPressureRecord?>(null) }
     var isPatternAnalysisExpanded by remember { mutableStateOf(false) }
@@ -540,6 +619,10 @@ fun BpDetailView(viewModel: HealthViewModel, lang: String) {
     val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxSize()) {
+        dangerAlert?.let { alert ->
+            DangerAlertBanner(alert = alert, onDismiss = { viewModel.dismissDangerAlert() })
+        }
+
         if (records.size >= 2) {
             val systolicPoints = records.take(7).reversed().map { it.systolic.toFloat() }
             val diastolicPoints = records.take(7).reversed().map { it.diastolic.toFloat() }
@@ -728,17 +811,24 @@ fun BpDetailView(viewModel: HealthViewModel, lang: String) {
 @Composable
 fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
     val records by viewModel.bloodSugarRecords.collectAsState()
+    val dangerAlert by viewModel.dangerAlert.collectAsState()
     var showDialog by remember { mutableStateOf(false) }
     var editingRecord by remember { mutableStateOf<com.example.data.BloodSugarRecord?>(null) }
 
     var sugarStr by remember { mutableStateOf("") }
     var categorySelection by remember { mutableStateOf("Fasting") }
     val categories = listOf("Fasting", "Post-Prandial", "Random", "Bedtime")
+    var unitSelection by remember { mutableStateOf("mg/dL") }
+    val units = listOf("mg/dL", "mmol/L")
     var notesStr by remember { mutableStateOf("") }
     var customTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
     val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxSize()) {
+        dangerAlert?.let { alert ->
+            DangerAlertBanner(alert = alert, onDismiss = { viewModel.dismissDangerAlert() })
+        }
+
         if (records.isNotEmpty()) {
             val chartPoints = records.take(7).reversed().map { it.value }
             TrendLineChart(points = chartPoints, label = "Blood Sugar (${records.firstOrNull()?.unit ?: "mg/dL"})")
@@ -762,8 +852,8 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(records) { record ->
-                val statusString = getBloodSugarStatus(record.value, record.category, lang)
-                val statusColor = getBloodSugarStatusColor(record.value, record.category)
+                val statusString = getBloodSugarStatus(record.value, record.category, lang, record.unit)
+                val statusColor = getBloodSugarStatusColor(record.value, record.category, record.unit)
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
@@ -793,6 +883,12 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
                                 }
                             }
                             Text(record.category, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                text = getBloodSugarReferenceRange(record.category, record.unit),
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+                                lineHeight = 14.sp
+                            )
                             if (record.notes.isNotEmpty()) {
                                 Text(record.notes, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f))
                             }
@@ -802,6 +898,7 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
                             IconButton(onClick = {
                                 editingRecord = record
                                 sugarStr = record.value.toString()
+                                unitSelection = record.unit.ifEmpty { "mg/dL" }
                                 categorySelection = record.category
                                 notesStr = record.notes
                                 customTimestamp = record.timestamp
@@ -835,10 +932,25 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
                     )
                     OutlinedTextField(
                         value = sugarStr, onValueChange = { sugarStr = it },
-                        label = { Text("Blood Sugar (mg/dL)") },
+                        label = { Text("Blood Sugar Value") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Text("Unit", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        units.forEach { u ->
+                            val isSelected = unitSelection == u
+                            Card(
+                                modifier = Modifier.weight(1f).clickable { unitSelection = u },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = CardDefaults.cardColors(containerColor = if (isSelected) HighlightTeal else MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+                                    Text(u, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (isSelected) SlateDarkBg else MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
                     Text("Measurement Type / Category", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         categories.forEach { cat ->
@@ -854,6 +966,27 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
                             }
                         }
                     }
+                    // Reference range hint — updates live with unit/category selection
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = HighlightTeal.copy(alpha = 0.08f)),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth().padding(10.dp)) {
+                            Text(
+                                text = "Reference ranges (${unitSelection})",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = HighlightTeal
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = getBloodSugarReferenceRange(categorySelection, unitSelection),
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                lineHeight = 15.sp
+                            )
+                        }
+                    }
                     OutlinedTextField(
                         value = notesStr, onValueChange = { notesStr = it },
                         label = { Text("Notes") }, modifier = Modifier.fillMaxWidth()
@@ -867,9 +1000,9 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
                                 val s = sugarStr.toFloatOrNull() ?: 100f
                                 val rec = editingRecord
                                 if (rec != null) {
-                                    viewModel.updateBloodSugar(rec.copy(value = s, category = categorySelection, notes = notesStr, timestamp = customTimestamp))
+                                    viewModel.updateBloodSugar(rec.copy(value = s, unit = unitSelection, category = categorySelection, notes = notesStr, timestamp = customTimestamp))
                                 } else {
-                                    viewModel.addBloodSugar(s, categorySelection, notesStr, customTimestamp)
+                                    viewModel.addBloodSugar(s, unitSelection, categorySelection, notesStr, customTimestamp)
                                 }
                                 showDialog = false; editingRecord = null
                                 sugarStr = ""; notesStr = ""
@@ -1634,7 +1767,7 @@ fun BpCorrelationBarChart(
 // ==========================================
 // 3. LIFESTYLE SCREEN (Minds Screenshot 4)
 // ==========================================
-enum class LifeSection { NONE, SMOKING, WATER, EXERCISE }
+enum class LifeSection { NONE, SMOKING, WATER, EXERCISE, MOOD }
 
 @Composable
 fun LifestyleScreen(viewModel: HealthViewModel, lang: String) {
@@ -1678,6 +1811,20 @@ fun LifestyleScreen(viewModel: HealthViewModel, lang: String) {
                 )
             }
 
+            item {
+                val moodList by viewModel.moodRecords.collectAsState()
+                val todayMood = moodList.firstOrNull { isToday(it.timestamp) }
+                val moodEmoji = when(todayMood?.score) {
+                    1 -> "😢"; 2 -> "😕"; 3 -> "😐"; 4 -> "🙂"; 5 -> "😄"
+                    else -> null
+                }
+                LifestyleMenuButton(
+                    title = trans("mood"),
+                    subtitle = if (moodEmoji != null) "Today: $moodEmoji (${todayMood!!.score}/5)" else "Not logged today",
+                    onClick = { activeSub = LifeSection.MOOD }
+                )
+            }
+
             // High aesthetic match cyan "+250ml water" pill button!
             item {
                 Button(
@@ -1693,6 +1840,8 @@ fun LifestyleScreen(viewModel: HealthViewModel, lang: String) {
                 }
             }
         }
+    } else if (activeSub == LifeSection.MOOD) {
+        MoodDetailView(viewModel = viewModel, lang = lang, onBack = { activeSub = LifeSection.NONE })
     } else {
         // Detailed log list for selected category inside Lifestyle Tracker
         Column(modifier = Modifier.fillMaxSize()) {
@@ -1716,6 +1865,26 @@ fun LifestyleScreen(viewModel: HealthViewModel, lang: String) {
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
+            }
+
+            // Water goal progress bar
+            if (activeSub == LifeSection.WATER) {
+                val waterGoal by viewModel.waterGoalMl.collectAsState()
+                val waterToday2 = records.filter { it.type == "water" && isToday(it.timestamp) }.sumOf { it.amount.toDouble() }.toFloat()
+                val progress = (waterToday2 / waterGoal).coerceIn(0f, 1f)
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("${waterToday2.toInt()} ml", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = HighlightTeal)
+                        Text("Goal: ${waterGoal} ml", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    androidx.compose.material3.LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).height(8.dp).clip(RoundedCornerShape(4.dp)),
+                        color = HighlightTeal,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                    Text("${(progress * 100).toInt()}% of daily goal", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
 
             // Input Row
@@ -1800,6 +1969,100 @@ fun LifestyleScreen(viewModel: HealthViewModel, lang: String) {
 }
 
 @Composable
+fun MoodDetailView(viewModel: HealthViewModel, lang: String, onBack: () -> Unit) {
+    val records by viewModel.moodRecords.collectAsState()
+    var selectedScore by remember { mutableStateOf(3) }
+    var notesStr by remember { mutableStateOf("") }
+    val moodEmojis = listOf("😢", "😕", "😐", "🙂", "😄")
+    val moodLabels = listOf("Very Bad", "Bad", "Neutral", "Good", "Great")
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(modifier = Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onBackground)
+            }
+            Text("Mood Log", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+        }
+
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("How are you feeling?", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    moodEmojis.forEachIndexed { index, emoji ->
+                        val score = index + 1
+                        val isSelected = selectedScore == score
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isSelected) HighlightTeal.copy(alpha = 0.2f) else Color.Transparent)
+                                .clickable { selectedScore = score }
+                                .padding(8.dp)
+                        ) {
+                            Text(emoji, fontSize = 28.sp)
+                            Text(score.toString(), fontSize = 10.sp, color = if (isSelected) HighlightTeal else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+                Text(moodLabels[selectedScore - 1], fontSize = 13.sp, color = HighlightTeal, fontWeight = FontWeight.Medium, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                OutlinedTextField(
+                    value = notesStr,
+                    onValueChange = { notesStr = it },
+                    label = { Text("Notes (optional)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                Button(
+                    onClick = {
+                        viewModel.addMood(selectedScore, notesStr)
+                        notesStr = ""
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
+                ) {
+                    Text("Log Mood", color = SlateDarkBg, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(records) { r ->
+                val emoji = moodEmojis.getOrElse(r.score - 1) { "😐" }
+                val label = moodLabels.getOrElse(r.score - 1) { "Neutral" }
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(emoji, fontSize = 24.sp)
+                            Column {
+                                Text("$label (${r.score}/5)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                                if (r.notes.isNotEmpty()) Text(r.notes, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(viewModel.formatDate(r.timestamp), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                            }
+                        }
+                        IconButton(onClick = { viewModel.deleteMood(r) }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AlertRed)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun LifestyleMenuButton(
     title: String,
     subtitle: String,
@@ -1840,7 +2103,7 @@ fun isToday(timestamp: Long): Boolean {
 // ==========================================
 // 4. MORE SCREEN (Minds Screenshot 2)
 // ==========================================
-enum class MoreSection { NONE, ATTACHMENTS, EMERGENCY, SUMMARY, SEARCH, AI_ASSISTANT }
+enum class MoreSection { NONE, ATTACHMENTS, EMERGENCY, SUMMARY, SEARCH, AI_ASSISTANT, FAMILY }
 
 @Composable
 fun MoreScreen(viewModel: HealthViewModel, lang: String) {
@@ -1857,6 +2120,7 @@ fun MoreScreen(viewModel: HealthViewModel, lang: String) {
             val sections = listOf(
                 Pair("attachments", MoreSection.ATTACHMENTS),
                 Pair("emergency_info", MoreSection.EMERGENCY),
+                Pair("family_members", MoreSection.FAMILY),
                 Pair("health_summary", MoreSection.SUMMARY),
                 Pair("search", MoreSection.SEARCH),
                 Pair("ai_health_assistant", MoreSection.AI_ASSISTANT)
@@ -1900,6 +2164,7 @@ fun MoreScreen(viewModel: HealthViewModel, lang: String) {
                 val titleString = when(activeSub) {
                     MoreSection.ATTACHMENTS -> trans("attachments")
                     MoreSection.EMERGENCY -> trans("emergency_info")
+                    MoreSection.FAMILY -> trans("family_members")
                     MoreSection.SUMMARY -> trans("health_summary")
                     MoreSection.SEARCH -> trans("search")
                     else -> trans("ai_health_assistant")
@@ -1911,6 +2176,7 @@ fun MoreScreen(viewModel: HealthViewModel, lang: String) {
                 when(activeSub) {
                     MoreSection.ATTACHMENTS -> DocumentAttachmentsView(viewModel, lang)
                     MoreSection.EMERGENCY -> EmergencyCardView(viewModel, lang)
+                    MoreSection.FAMILY -> FamilyMembersView(viewModel, lang)
                     MoreSection.SUMMARY -> HealthSummaryView(viewModel, lang)
                     MoreSection.SEARCH -> SearchJournalView(viewModel, lang)
                     MoreSection.AI_ASSISTANT -> AIHealthAssistantView(viewModel, lang)
@@ -2117,6 +2383,8 @@ fun EmergencyCardView(viewModel: HealthViewModel, lang: String) {
     var cName by remember { mutableStateOf("") }
     var cPhone by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
+    var sex by remember { mutableStateOf("") }
+    var childrenStr by remember { mutableStateOf("0") }
 
     LaunchedEffect(info) {
         info?.let {
@@ -2127,6 +2395,8 @@ fun EmergencyCardView(viewModel: HealthViewModel, lang: String) {
             cName = it.contactName
             cPhone = it.contactPhone
             notes = it.additionalNotes
+            sex = it.sex
+            childrenStr = it.numberOfChildren.toString()
         }
     }
 
@@ -2162,6 +2432,41 @@ fun EmergencyCardView(viewModel: HealthViewModel, lang: String) {
                 label = { Text(trans("blood_type")) },
                 modifier = Modifier.fillMaxWidth()
             )
+        }
+
+        item {
+            Text("Sex", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("Male", "Female").forEach { option ->
+                    val selected = sex == option
+                    OutlinedButton(
+                        onClick = { sex = option },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (selected) HighlightTeal.copy(alpha = 0.15f) else Color.Transparent,
+                            contentColor = if (selected) HighlightTeal else MaterialTheme.colorScheme.onSurface
+                        ),
+                        border = BorderStroke(
+                            1.5.dp,
+                            if (selected) HighlightTeal else MaterialTheme.colorScheme.outline
+                        )
+                    ) {
+                        Text(option, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
+                    }
+                }
+            }
+        }
+
+        if (sex == "Female") {
+            item {
+                OutlinedTextField(
+                    value = childrenStr,
+                    onValueChange = { if (it.all { c -> c.isDigit() }) childrenStr = it },
+                    label = { Text("Number of Children") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
 
         item {
@@ -2213,7 +2518,11 @@ fun EmergencyCardView(viewModel: HealthViewModel, lang: String) {
         item {
             Button(
                 onClick = {
-                    viewModel.saveEmergencyCard(name, blood, conditions, allergies, cName, cPhone, notes)
+                    viewModel.saveEmergencyCard(
+                        name, blood, conditions, allergies, cName, cPhone, notes,
+                        sex = sex,
+                        numberOfChildren = childrenStr.toIntOrNull() ?: 0
+                    )
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -2401,77 +2710,302 @@ fun SearchMatchRow(title: String, text: String, date: String) {
 
 // AI Health Assistant View (Supports Gemini, OpenAI, DeepSeek per settings selection!)
 @Composable
-fun AIHealthAssistantView(viewModel: HealthViewModel, lang: String) {
-    val response by viewModel.aiResponse.collectAsState()
-    val loading by viewModel.aiLoading.collectAsState()
-    val key by viewModel.apiKey.collectAsState()
-    val provider by viewModel.aiProvider.collectAsState()
+fun FamilyMembersView(viewModel: HealthViewModel, lang: String) {
+    fun trans(key: String) = LocalStrings.get(key, lang)
+    val members by viewModel.familyMembers.collectAsState()
+    var showDialog by remember { mutableStateOf(false) }
+    var editingMember by remember { mutableStateOf<com.example.data.FamilyMemberProfile?>(null) }
+    var nameStr by remember { mutableStateOf("") }
+    var relStr by remember { mutableStateOf("") }
+    var dobStr by remember { mutableStateOf("") }
+    var bloodStr by remember { mutableStateOf("") }
+    var sexStr by remember { mutableStateOf("") }
+    var conditionsStr by remember { mutableStateOf("") }
+    var allergiesStr by remember { mutableStateOf("") }
+    var contactNameStr by remember { mutableStateOf("") }
+    var contactPhoneStr by remember { mutableStateOf("") }
+    var heightStr by remember { mutableStateOf("") }
+    var weightStr by remember { mutableStateOf("") }
+    var notesStr by remember { mutableStateOf("") }
+    val bloodTypes = listOf("A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-")
 
-    var userQueryInput by remember { mutableStateOf("") }
+    fun resetDialog() {
+        nameStr = ""; relStr = ""; dobStr = ""; bloodStr = ""; sexStr = ""
+        conditionsStr = ""; allergiesStr = ""; contactNameStr = ""; contactPhoneStr = ""
+        heightStr = ""; weightStr = ""; notesStr = ""
+    }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Card(
-            modifier = Modifier.fillMaxWidth().weight(1f),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    Column(modifier = Modifier.fillMaxSize()) {
+        Button(
+            onClick = { editingMember = null; resetDialog(); showDialog = true },
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
         ) {
-            Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                if (loading) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = HighlightTeal)
-                } else {
-                    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                        Text(
-                            text = if (provider.isNotEmpty()) "Assistant Powered By $provider" else "Health GPT Assistant",
-                            fontWeight = FontWeight.Black,
-                            fontSize = 12.sp,
-                            color = HighlightTeal,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                        
-                        if (response.isEmpty()) {
-                            Text(
-                                text = "Ask anything about your health records, metrics, trend indicators or suggest health tips.\n\n" +
-                                       "Sample Prompts:\n" +
-                                       "• \"What does my latest Blood Pressure reading indicate?\"\n" +
-                                       "• \"What is my dynamic BMI and how can I bring it to normal range?\"\n" +
-                                       "• \"Analyze my lipid logs (cholesterol & triglycerides).\"",
-                                fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        } else {
-                            Text(
-                                text = response,
-                                fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+            Text(trans("add") + " " + trans("family_members"), color = SlateDarkBg, fontWeight = FontWeight.Bold)
+        }
+
+        if (members.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(trans("no_records"), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(members) { m ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    ) {
+                        Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(m.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                                if (m.relationship.isNotEmpty()) Text(m.relationship, fontSize = 13.sp, color = HighlightTeal)
+                                if (m.sex.isNotEmpty()) Text(trans("sex") + ": " + m.sex, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (m.dateOfBirth.isNotEmpty()) Text(trans("date_of_birth") + ": " + m.dateOfBirth, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (m.bloodType.isNotEmpty()) Text(trans("blood_type") + ": " + m.bloodType, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (m.heightCm > 0f) Text(trans("height_cm") + ": ${m.heightCm.toInt()} cm", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (m.weightKg > 0f) Text(trans("weight_kg") + ": ${m.weightKg} kg", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (m.chronicConditions.isNotEmpty()) Text(trans("chronic_conditions") + ": " + m.chronicConditions, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f))
+                                if (m.allergies.isNotEmpty()) Text(trans("allergies") + ": " + m.allergies, fontSize = 11.sp, color = AlertRed.copy(alpha = 0.85f))
+                                if (m.emergencyContactName.isNotEmpty()) Text(trans("emergency_contact") + ": " + m.emergencyContactName, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f))
+                                if (m.emergencyContactPhone.isNotEmpty()) Text(trans("emergency_phone") + ": " + m.emergencyContactPhone, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f))
+                                if (m.notes.isNotEmpty()) Text(m.notes, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                            }
+                            Row {
+                                IconButton(onClick = {
+                                    editingMember = m
+                                    nameStr = m.name; relStr = m.relationship; dobStr = m.dateOfBirth
+                                    bloodStr = m.bloodType; sexStr = m.sex; conditionsStr = m.chronicConditions
+                                    allergiesStr = m.allergies; contactNameStr = m.emergencyContactName
+                                    contactPhoneStr = m.emergencyContactPhone
+                                    heightStr = if (m.heightCm > 0f) m.heightCm.toInt().toString() else ""
+                                    weightStr = if (m.weightKg > 0f) m.weightKg.toString() else ""
+                                    notesStr = m.notes
+                                    showDialog = true
+                                }) {
+                                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = HighlightTeal)
+                                }
+                                IconButton(onClick = { viewModel.deleteFamilyMember(m) }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AlertRed)
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+    }
 
-        Spacer(modifier = Modifier.height(12.dp))
+    if (showDialog) {
+        Dialog(onDismissRequest = { showDialog = false; editingMember = null }) {
+            Card(modifier = Modifier.fillMaxWidth().padding(8.dp), shape = RoundedCornerShape(16.dp)) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(if (editingMember != null) "Edit Member" else trans("add") + " " + trans("family_members"), fontWeight = FontWeight.Bold, fontSize = 16.sp)
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            OutlinedTextField(
-                value = userQueryInput,
-                onValueChange = { userQueryInput = it },
-                label = { Text("Ask your health assistant...") },
+                    OutlinedTextField(value = nameStr, onValueChange = { nameStr = it }, label = { Text(trans("full_name") + " *") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = relStr, onValueChange = { relStr = it }, label = { Text(trans("relationship")) }, modifier = Modifier.fillMaxWidth())
+
+                    Text(trans("sex"), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(trans("male"), trans("female")).forEach { s ->
+                            val sel = sexStr == s
+                            Card(
+                                modifier = Modifier.weight(1f).clickable { sexStr = s },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = CardDefaults.cardColors(containerColor = if (sel) HighlightTeal else MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+                                    Text(s, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (sel) SlateDarkBg else MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(value = dobStr, onValueChange = { dobStr = it }, label = { Text(trans("date_of_birth") + " (DD/MM/YYYY)") }, modifier = Modifier.fillMaxWidth())
+
+                    Text(trans("blood_type_select"), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        bloodTypes.take(4).forEach { bt ->
+                            val sel = bloodStr == bt
+                            Card(modifier = Modifier.weight(1f).clickable { bloodStr = bt }, shape = RoundedCornerShape(6.dp),
+                                colors = CardDefaults.cardColors(containerColor = if (sel) HighlightTeal else MaterialTheme.colorScheme.surfaceVariant)) {
+                                Box(Modifier.fillMaxWidth().padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
+                                    Text(bt, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (sel) SlateDarkBg else MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        bloodTypes.drop(4).forEach { bt ->
+                            val sel = bloodStr == bt
+                            Card(modifier = Modifier.weight(1f).clickable { bloodStr = bt }, shape = RoundedCornerShape(6.dp),
+                                colors = CardDefaults.cardColors(containerColor = if (sel) HighlightTeal else MaterialTheme.colorScheme.surfaceVariant)) {
+                                Box(Modifier.fillMaxWidth().padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
+                                    Text(bt, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (sel) SlateDarkBg else MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(value = heightStr, onValueChange = { heightStr = it }, label = { Text(trans("height_cm")) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+                        OutlinedTextField(value = weightStr, onValueChange = { weightStr = it }, label = { Text(trans("weight_kg")) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+                    }
+
+                    OutlinedTextField(value = conditionsStr, onValueChange = { conditionsStr = it }, label = { Text(trans("chronic_conditions")) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = allergiesStr, onValueChange = { allergiesStr = it }, label = { Text(trans("allergies")) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = contactNameStr, onValueChange = { contactNameStr = it }, label = { Text(trans("emergency_contact")) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = contactPhoneStr, onValueChange = { contactPhoneStr = it }, label = { Text(trans("emergency_phone")) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = notesStr, onValueChange = { notesStr = it }, label = { Text(trans("notes")) }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { showDialog = false; editingMember = null }) { Text(trans("cancel")) }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                if (nameStr.trim().isNotEmpty()) {
+                                    val ht = heightStr.toFloatOrNull() ?: 0f
+                                    val wt = weightStr.toFloatOrNull() ?: 0f
+                                    val existing = editingMember
+                                    if (existing != null) {
+                                        viewModel.updateFamilyMember(existing.copy(
+                                            name = nameStr, relationship = relStr, dateOfBirth = dobStr,
+                                            bloodType = bloodStr, notes = notesStr, sex = sexStr,
+                                            chronicConditions = conditionsStr, allergies = allergiesStr,
+                                            emergencyContactName = contactNameStr, emergencyContactPhone = contactPhoneStr,
+                                            heightCm = ht, weightKg = wt
+                                        ))
+                                    } else {
+                                        viewModel.addFamilyMember(
+                                            nameStr, relStr, dobStr, bloodStr, notesStr,
+                                            sexStr, conditionsStr, allergiesStr, contactNameStr, contactPhoneStr, ht, wt
+                                        )
+                                    }
+                                    showDialog = false; editingMember = null
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
+                        ) { Text(if (editingMember != null) trans("save") else trans("add"), color = SlateDarkBg) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AIHealthAssistantView(viewModel: HealthViewModel, lang: String) {
+    val response by viewModel.aiResponse.collectAsState()
+    val loading by viewModel.aiLoading.collectAsState()
+    val weeklyNarrative by viewModel.weeklyNarrative.collectAsState()
+    val weeklyLoading by viewModel.weeklyNarrativeLoading.collectAsState()
+    val provider by viewModel.aiProvider.collectAsState()
+
+    var userQueryInput by remember { mutableStateOf("") }
+    var showWeekly by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        // Weekly summary toggle row
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = { showWeekly = false },
+                border = BorderStroke(1.dp, if (!showWeekly) HighlightTeal else MaterialTheme.colorScheme.outline),
                 modifier = Modifier.weight(1f)
-            )
+            ) { Text("Chat", color = if (!showWeekly) HighlightTeal else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp) }
+            OutlinedButton(
+                onClick = { showWeekly = true },
+                border = BorderStroke(1.dp, if (showWeekly) HighlightTeal else MaterialTheme.colorScheme.outline),
+                modifier = Modifier.weight(1f)
+            ) { Text("Weekly Summary", color = if (showWeekly) HighlightTeal else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp) }
+        }
 
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (showWeekly) {
+            Card(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                    if (weeklyLoading) {
+                        Column(modifier = Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(color = HighlightTeal)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Generating your 7-day health summary...", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    } else {
+                        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                            Text("AI Weekly Health Report", fontWeight = FontWeight.Black, fontSize = 12.sp, color = HighlightTeal, modifier = Modifier.padding(bottom = 8.dp))
+                            if (weeklyNarrative.isEmpty()) {
+                                Text("Tap \"Generate\" below to get a personalised 7-day health narrative powered by AI.", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            } else {
+                                Text(weeklyNarrative, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
             Button(
-                onClick = {
-                    viewModel.queryAIAssistant(userQueryInput)
-                    userQueryInput = ""
-                },
-                enabled = userQueryInput.trim().isNotEmpty() && !loading,
+                onClick = { viewModel.generateWeeklyNarrative() },
+                enabled = !weeklyLoading,
+                modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
             ) {
-                Text("Send", color = SlateDarkBg, fontWeight = FontWeight.Bold)
+                Text("Generate Weekly Summary", color = SlateDarkBg, fontWeight = FontWeight.Bold)
+            }
+        } else {
+            Card(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                    if (loading) {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = HighlightTeal)
+                    } else {
+                        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                            Text(
+                                text = if (provider.isNotEmpty()) "Assistant Powered By $provider" else "Health GPT Assistant",
+                                fontWeight = FontWeight.Black, fontSize = 12.sp, color = HighlightTeal,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            if (response.isEmpty()) {
+                                Text(
+                                    text = "Ask anything about your health records, metrics, trend indicators or suggest health tips.\n\n" +
+                                           "Sample Prompts:\n" +
+                                           "• \"What does my latest Blood Pressure reading indicate?\"\n" +
+                                           "• \"What is my dynamic BMI and how can I bring it to normal range?\"\n" +
+                                           "• \"Analyze my lipid logs (cholesterol & triglycerides).\"",
+                                    fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                Text(text = response, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = userQueryInput,
+                    onValueChange = { userQueryInput = it },
+                    label = { Text("Ask your health assistant...") },
+                    modifier = Modifier.weight(1f)
+                )
+                Button(
+                    onClick = { viewModel.queryAIAssistant(userQueryInput); userQueryInput = "" },
+                    enabled = userQueryInput.trim().isNotEmpty() && !loading,
+                    colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
+                ) { Text("Send", color = SlateDarkBg, fontWeight = FontWeight.Bold) }
             }
         }
     }
@@ -2704,7 +3238,7 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
 
         // Export for Doctor (DataDoctorPro-compatible CSV)
         item {
-            Text("Export for Doctor", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = HighlightTeal)
+            Text(trans("export_for_doctor"), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = HighlightTeal)
 
             val lastDoctorExportTime by viewModel.lastDoctorExportTime.collectAsState()
 
@@ -2715,12 +3249,13 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
             ) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = "Share a CSV of your Blood Pressure, Blood Sugar, Weight, Sleep, Symptom and Lab Result records with your doctor (e.g. for import into DataDoctorPro).",
+                        text = trans("doctor_export_desc"),
                         fontSize = 11.sp,
                         color = Color.White.copy(alpha = 0.6f)
                     )
+                    val neverStr = trans("never")
                     Text(
-                        text = if (lastDoctorExportTime > 0L) "Last sent: ${viewModel.formatDate(lastDoctorExportTime)}" else "Last sent: Never",
+                        text = "${trans("last_sent")}: ${if (lastDoctorExportTime > 0L) viewModel.formatDate(lastDoctorExportTime) else neverStr}",
                         fontSize = 11.sp,
                         color = Color.White.copy(alpha = 0.5f)
                     )
@@ -2729,13 +3264,13 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         OutlinedButton(onClick = { viewModel.exportForDoctor(context, "last30") }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)) {
-                            Text("30 Days", fontSize = 10.sp)
+                            Text(trans("days_30"), fontSize = 10.sp)
                         }
                         OutlinedButton(onClick = { viewModel.exportForDoctor(context, "last90") }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)) {
-                            Text("90 Days", fontSize = 10.sp)
+                            Text(trans("days_90"), fontSize = 10.sp)
                         }
                         OutlinedButton(onClick = { viewModel.exportForDoctor(context, "all") }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)) {
-                            Text("All Time", fontSize = 10.sp)
+                            Text(trans("all_time"), fontSize = 10.sp)
                         }
                     }
                     Button(
@@ -2745,20 +3280,17 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                     ) {
                         Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp), tint = SlateDarkBg)
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Send New Records Since Last Export", color = SlateDarkBg, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        Text(trans("send_new_records"), color = SlateDarkBg, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
                 }
             }
         }
 
-        // WhatsApp-Style Backup & Sync Center
+        // Backup & Restore
         item {
-            Text("Backup & Sync (WhatsApp Style)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = HighlightTeal)
-            
+            Text(trans("backup_sync"), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = HighlightTeal)
+
             val lastLocalTime by viewModel.lastLocalBackupTime.collectAsState()
-            val lastDriveTime by viewModel.lastDriveBackupTime.collectAsState()
-            val syncStatus by viewModel.googleDriveSyncStatus.collectAsState()
-            val isSyncing by viewModel.googleDriveIsSyncing.collectAsState()
 
             Card(
                 modifier = Modifier
@@ -2782,7 +3314,7 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                             modifier = Modifier.size(24.dp)
                         )
                         Text(
-                            text = "Backup & Restore options for your medical journal records.",
+                            text = trans("backup_desc"),
                             fontSize = 12.sp,
                             color = Color.White.copy(alpha = 0.8f),
                             lineHeight = 16.sp,
@@ -2795,18 +3327,18 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                     // Local Backup Section
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
-                            text = "Local Device Backup",
+                            text = trans("local_backup"),
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             color = Color.White
                         )
-                        val localTimeStr = if (lastLocalTime > 0L) viewModel.formatDate(lastLocalTime) else "Never"
+                        val localTimeStr = if (lastLocalTime > 0L) viewModel.formatDate(lastLocalTime) else trans("never")
                         Text(
-                            text = "Last backup: $localTimeStr",
+                            text = "${trans("last_backup")}: $localTimeStr",
                             fontSize = 12.sp,
                             color = Color.White.copy(alpha = 0.6f)
                         )
-                        
+
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -2819,7 +3351,7 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(14.dp), tint = SlateDarkBg)
-                                    Text("Back Up", color = SlateDarkBg, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text(trans("back_up"), color = SlateDarkBg, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                             Button(
@@ -2830,371 +3362,7 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
-                                    Text("Restore", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-                    }
-
-                    HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
-
-                    // Google Drive Backup Section
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "Google Drive Backup & Restore",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = Color.White
-                        )
-                        val driveTimeStr = if (lastDriveTime > 0L) viewModel.formatDate(lastDriveTime) else "Never"
-                        Text(
-                            text = "Last sync: $driveTimeStr",
-                            fontSize = 12.sp,
-                            color = Color.White.copy(alpha = 0.6f)
-                        )
-                        Text(
-                            text = "Google Drive Connection: $syncStatus",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = HighlightTeal
-                        )
-
-                        val isGoogleSignedIn by viewModel.isGoogleSignedIn.collectAsState()
-                        val googleAccountEmail by viewModel.googleAccountEmail.collectAsState()
-                        val googleClientId by viewModel.googleClientId.collectAsState()
-                        val manualDriveToken by viewModel.manualDriveToken.collectAsState()
-
-                        var showGoogleAuthWebView by remember { mutableStateOf(false) }
-                        var showOAuthSetupDialog by remember { mutableStateOf(false) }
-                        var isAdvancedOptionsExpanded by remember { mutableStateOf(false) }
-
-                        if (showOAuthSetupDialog) {
-                            AlertDialog(
-                                onDismissRequest = { showOAuthSetupDialog = false },
-                                title = { Text("Google Sign-In Setup Required") },
-                                text = {
-                                    Column {
-                                        Text(
-                                            "The built-in Google Client ID is just a placeholder and isn't registered with Google, " +
-                                            "so sign-in fails with \"Error 401: invalid_client\".\n\n" +
-                                            "To enable Google Drive backup, create your own free OAuth Client ID:\n\n" +
-                                            "1. Go to console.cloud.google.com and create (or select) a project.\n" +
-                                            "2. Enable the \"Google Drive API\".\n" +
-                                            "3. Go to \"APIs & Services\" > \"Credentials\" > \"Create Credentials\" > \"OAuth client ID\".\n" +
-                                            "4. Choose \"Web application\".\n" +
-                                            "5. Under \"Authorized redirect URIs\", add: http://localhost\n" +
-                                            "6. Copy the generated Client ID and paste it below in \"Advanced Drive Settings\" > \"Private OAuth Web Client ID (PKCE)\".",
-                                            fontSize = 13.sp
-                                        )
-                                    }
-                                },
-                                confirmButton = {
-                                    TextButton(onClick = {
-                                        isAdvancedOptionsExpanded = true
-                                        showOAuthSetupDialog = false
-                                    }) { Text("Open Advanced Settings") }
-                                },
-                                dismissButton = {
-                                    TextButton(onClick = { showOAuthSetupDialog = false }) { Text("Close") }
-                                }
-                            )
-                        }
-
-                        if (showGoogleAuthWebView) {
-                            val authUrl = remember { viewModel.getGoogleAuthUrl() }
-                            Dialog(
-                                onDismissRequest = { showGoogleAuthWebView = false },
-                                properties = DialogProperties(
-                                    dismissOnBackPress = true,
-                                    dismissOnClickOutside = false,
-                                    usePlatformDefaultWidth = false
-                                )
-                            ) {
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(16.dp),
-                                    shape = RoundedCornerShape(16.dp),
-                                    colors = CardDefaults.cardColors(containerColor = SlateDarkBg),
-                                    border = BorderStroke(1.dp, HighlightTeal.copy(alpha = 0.5f))
-                                ) {
-                                    Column(modifier = Modifier.fillMaxSize()) {
-                                        // Header
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = "Sign in with Google",
-                                                color = Color.White,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 15.sp
-                                            )
-                                            IconButton(onClick = { showGoogleAuthWebView = false }) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Close,
-                                                    contentDescription = "Close",
-                                                    tint = Color.White,
-                                                    modifier = Modifier.size(20.dp)
-                                                )
-                                            }
-                                        }
-
-                                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
-
-                                        // WebView
-                                        AndroidView(
-                                            modifier = Modifier.weight(1f).fillMaxWidth(),
-                                            factory = { ctx ->
-                                                WebView(ctx).apply {
-                                                    settings.apply {
-                                                        javaScriptEnabled = true
-                                                        domStorageEnabled = true
-                                                        databaseEnabled = true
-                                                        cacheMode = WebSettings.LOAD_DEFAULT
-                                                        userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36"
-                                                    }
-                                                    webViewClient = object : WebViewClient() {
-                                                        private var authCodeHandled = false
-
-                                                        override fun shouldOverrideUrlLoading(
-                                                            view: WebView?,
-                                                            request: WebResourceRequest?
-                                                        ): Boolean {
-                                                            val url = request?.url?.toString() ?: ""
-                                                            if (url.startsWith("http://localhost")) {
-                                                                val code = request?.url?.getQueryParameter("code")
-                                                                if (code != null && !authCodeHandled) {
-                                                                    authCodeHandled = true
-                                                                    showGoogleAuthWebView = false
-                                                                    viewModel.completeGoogleSignIn(code) { success, msg ->
-                                                                        importStatusMessage = if (success) "Google account connected! You can now sync to Drive." else "Sign-in failed: $msg"
-                                                                        showImportStatus = true
-                                                                    }
-                                                                }
-                                                                return true
-                                                            }
-                                                            return false
-                                                        }
-
-                                                        override fun onPageFinished(view: WebView?, url: String?) {
-                                                            super.onPageFinished(view, url)
-                                                            if (authCodeHandled) return
-                                                            view?.evaluateJavascript(
-                                                                "document.body ? document.body.innerText.includes('invalid_client') : false"
-                                                            ) { result ->
-                                                                if (result == "true") {
-                                                                    showGoogleAuthWebView = false
-                                                                    showOAuthSetupDialog = true
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                    loadUrl(authUrl)
-                                                }
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // Connected Account status or Sign-In button
-                        if (isGoogleSignedIn) {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.05f)),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                border = BorderStroke(1.dp, HighlightTeal.copy(alpha = 0.2f))
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp).fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(8.dp)
-                                                .clip(CircleShape)
-                                                .background(HighlightTeal)
-                                        )
-                                        Column {
-                                            Text(
-                                                text = "Connected Account",
-                                                fontSize = 11.sp,
-                                                color = Color.White.copy(alpha = 0.5f)
-                                            )
-                                            Text(
-                                                text = googleAccountEmail.ifEmpty { "Patient Drive Storage" },
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White
-                                            )
-                                        }
-                                    }
-                                    
-                                    Button(
-                                        onClick = { viewModel.googleSignOut() },
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.15f)),
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                        shape = RoundedCornerShape(6.dp),
-                                        border = BorderStroke(1.dp, Color.Red.copy(alpha = 0.5f))
-                                    ) {
-                                        Text("Disconnect", color = Color.Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        } else {
-                            Button(
-                                onClick = {
-                                    if (viewModel.isUsingPlaceholderClientId()) {
-                                        showOAuthSetupDialog = true
-                                    } else {
-                                        showGoogleAuthWebView = true
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth().height(42.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color.White),
-                                shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text(
-                                        text = "G",
-                                        color = Color(0xFF4285F4),
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 16.sp
-                                    )
-                                    Text(
-                                        text = "Sign In with Google",
-                                        color = SlateDarkBg,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp
-                                    )
-                                }
-                            }
-                        }
-
-                        // Sync Up and Pull Down trigger row
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Button(
-                                onClick = { viewModel.syncToGoogleDrive(context) },
-                                enabled = !isSyncing,
-                                colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                if (isSyncing) {
-                                    CircularProgressIndicator(modifier = Modifier.size(14.dp), color = SlateDarkBg, strokeWidth = 1.5.dp)
-                                } else {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Icon(Icons.Default.Backup, contentDescription = null, modifier = Modifier.size(14.dp), tint = SlateDarkBg)
-                                        Text("Sync Up", color = SlateDarkBg, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                            Button(
-                                onClick = { viewModel.restoreFromGoogleDrive(context) },
-                                enabled = !isSyncing,
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                if (isSyncing) {
-                                    CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Color.White, strokeWidth = 1.5.dp)
-                                } else {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
-                                        Text("Pull Down", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        }
-
-                        // Expandable Advanced Google Settings
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { isAdvancedOptionsExpanded = !isAdvancedOptionsExpanded }
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Text(
-                                "Advanced Drive Settings",
-                                fontSize = 11.sp,
-                                color = Color.White.copy(alpha = 0.5f),
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Icon(
-                                imageVector = if (isAdvancedOptionsExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
-                                contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.5f),
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-
-                        if (isAdvancedOptionsExpanded) {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.02f)),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    // Custom Client ID
-                                    OutlinedTextField(
-                                        value = googleClientId,
-                                        onValueChange = { viewModel.updateGoogleClientId(it) },
-                                        label = { Text("Private OAuth Web Client ID (PKCE)", fontSize = 10.sp) },
-                                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = HighlightTeal,
-                                            unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
-                                        )
-                                    )
-                                    
-                                    // Backwards-compatible manual token
-                                    var isTokenVisible by remember { mutableStateOf(false) }
-                                    OutlinedTextField(
-                                        value = manualDriveToken,
-                                        onValueChange = { viewModel.updateManualDriveToken(it) },
-                                        label = { Text("Manual Google Drive Access Token", fontSize = 10.sp) },
-                                        visualTransformation = if (isTokenVisible) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),
-                                        trailingIcon = {
-                                            IconButton(onClick = { isTokenVisible = !isTokenVisible }) {
-                                                val icon = if (isTokenVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
-                                                Icon(icon, contentDescription = "Toggle Visibility", modifier = Modifier.size(16.dp))
-                                            }
-                                        },
-                                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = HighlightTeal,
-                                            unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
-                                        )
-                                    )
-
-                                    Text(
-                                        text = "To guarantee maximum personal backup privacy, you can configure your own OAuth Web Application Client ID in your Google Cloud Developer Console. Make sure to add authorized redirect URI 'http://localhost' (no client secret is needed). This isolates your data entirely from other app instances.",
-                                        fontSize = 9.sp,
-                                        lineHeight = 11.sp,
-                                        color = Color.White.copy(alpha = 0.4f)
-                                    )
+                                    Text(trans("restore"), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -3209,7 +3377,7 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("Export Media Support ZIP", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text(trans("export_media_zip"), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 }
             }

@@ -52,4 +52,19 @@ class HealthRepository(private val dao: HealthDao) {
     val allBloodSugar: Flow<List<BloodSugarRecord>> = dao.getAllBloodSugar()
     suspend fun insertBloodSugar(record: BloodSugarRecord) = dao.insertBloodSugar(record)
     suspend fun deleteBloodSugar(record: BloodSugarRecord) = dao.deleteBloodSugar(record)
+
+    // --- Mood ---
+    val allMoods: Flow<List<MoodRecord>> = dao.getAllMoods()
+    suspend fun insertMood(record: MoodRecord) = dao.insertMood(record)
+    suspend fun deleteMood(record: MoodRecord) = dao.deleteMood(record)
+
+    // --- Medication Doses ---
+    val allMedicationDoses: Flow<List<MedicationDoseRecord>> = dao.getAllMedicationDoses()
+    suspend fun insertMedicationDose(record: MedicationDoseRecord) = dao.insertMedicationDose(record)
+    suspend fun deleteMedicationDose(record: MedicationDoseRecord) = dao.deleteMedicationDose(record)
+
+    // --- Family Members ---
+    val allFamilyMembers: Flow<List<FamilyMemberProfile>> = dao.getAllFamilyMembers()
+    suspend fun insertFamilyMember(profile: FamilyMemberProfile) = dao.insertFamilyMember(profile)
+    suspend fun deleteFamilyMember(profile: FamilyMemberProfile) = dao.deleteFamilyMember(profile)
 }

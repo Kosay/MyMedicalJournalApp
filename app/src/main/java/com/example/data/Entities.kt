@@ -84,7 +84,9 @@ data class EmergencyInfo(
     val allergies: String = "",
     val contactName: String = "",
     val contactPhone: String = "",
-    val additionalNotes: String = ""
+    val additionalNotes: String = "",
+    val sex: String = "",           // "Male" or "Female"
+    val numberOfChildren: Int = 0
 )
 
 @Entity(tableName = "blood_sugar_records")
@@ -95,4 +97,39 @@ data class BloodSugarRecord(
     val category: String = "Fasting", // e.g. "Fasting", "Post-Prandial", "Random", "Bedtime"
     val timestamp: Long,
     val notes: String = ""
+)
+
+@Entity(tableName = "mood_records")
+data class MoodRecord(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val score: Int,   // 1 = very bad … 5 = great
+    val notes: String = "",
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "medication_doses")
+data class MedicationDoseRecord(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val medicationId: Int = 0,
+    val medicationName: String,
+    val timestamp: Long = System.currentTimeMillis(),
+    val taken: Boolean = true,
+    val notes: String = ""
+)
+
+@Entity(tableName = "family_members")
+data class FamilyMemberProfile(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val name: String,
+    val relationship: String = "",
+    val dateOfBirth: String = "",
+    val bloodType: String = "",
+    val notes: String = "",
+    val sex: String = "",
+    val chronicConditions: String = "",
+    val allergies: String = "",
+    val emergencyContactName: String = "",
+    val emergencyContactPhone: String = "",
+    val heightCm: Float = 0f,
+    val weightKg: Float = 0f
 )
