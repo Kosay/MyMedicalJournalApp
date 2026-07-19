@@ -130,7 +130,91 @@ object LocalStrings {
             "last_backup" to "Last backup",
             "back_up" to "Back Up",
             "restore" to "Restore",
-            "export_media_zip" to "Export Media ZIP"
+            "export_media_zip" to "Export Media ZIP",
+
+            // i18n completions — dialog titles
+            "update" to "Update",
+            "record_bp" to "Record Blood Pressure",
+            "edit_bp" to "Edit Blood Pressure",
+            "add_weight" to "Add Weight Record",
+            "edit_weight" to "Edit Weight",
+            "add_medication" to "Add Medication",
+            "edit_medication" to "Edit Medication",
+            "record_symptom" to "Record Symptom",
+            "edit_symptom" to "Edit Symptom",
+            "log_sleep" to "Log Sleep",
+            "edit_sleep" to "Edit Sleep",
+            "add_lab_result" to "Add Lab Result",
+            "edit_lab_result" to "Edit Lab Result",
+            "enter_attachment" to "Enter Attachment Details",
+            "restore_status" to "Restore Status",
+
+            // Form field labels
+            "systolic_mmhg" to "Systolic (mmHg)",
+            "diastolic_mmhg" to "Diastolic (mmHg)",
+            "heart_rate_bpm" to "Heart Rate (bpm)",
+            "blood_sugar_value" to "Blood Sugar Value",
+            "weight_kg_label" to "Weight (kg)",
+            "medication_name" to "Medication Name",
+            "dosage_hint" to "Dosage (e.g. 10mg / 500mg)",
+            "frequency_hint" to "Frequency (e.g. Once daily / evening)",
+            "symptom_desc" to "Symptom Description",
+            "hours_slept" to "Hours slept",
+            "test_name_hint" to "Test Name (e.g. Cholesterol)",
+            "measurement_value" to "Measurement Value",
+            "unit_hint" to "Unit (e.g. mg/dL, mmol/L)",
+            "ref_range_hint" to "Reference Range (e.g. 70-100, < 200)",
+            "log_amount" to "Log amount",
+            "attachment_title" to "Title / Description",
+            "unit_short" to "Unit",
+            "measurement_category" to "Measurement Type / Category",
+            "severity_status" to "Severity Status",
+
+            // Status & messages
+            "no_attachments" to "No attachments loaded.",
+            "restore_successful" to "Restore successful! All records imported.",
+            "backup_saved" to "Backup saved successfully!",
+            "search_hint_text" to "Type any term above to search instantly.",
+
+            // AI/Summary labels
+            "mood_log" to "Mood Log",
+            "ai_chat" to "Chat",
+            "generating_summary" to "Generating your 7-day health summary...",
+            "ai_health_report" to "AI Weekly Health Report",
+            "ask_assistant" to "Ask your health assistant...",
+            "generate_summary" to "Generate Weekly Summary",
+            "log_mood_btn" to "Log Mood",
+            "send_btn" to "Send",
+
+            // Search labels
+            "bp_comments" to "Blood Pressure Comments",
+            "weight_comments" to "Weight Entry Comments",
+            "medication_matches" to "Medication Matches",
+            "symptom_logs_label" to "Symptom Logs",
+
+            // Appointments
+            "appointments" to "Appointments",
+            "add_appointment" to "Add Appointment",
+            "edit_appointment" to "Edit Appointment",
+            "appointment_title_field" to "Title (e.g. Cardiologist, Dr. Ahmad)",
+            "appointment_type" to "Type",
+            "appt_doctor" to "Doctor Visit",
+            "appt_medication" to "Medication Reminder",
+            "appt_lab" to "Lab Test",
+            "appt_other" to "Other",
+            "upcoming_appts" to "Upcoming",
+            "past_appts" to "Past",
+            "mark_complete" to "Mark Complete",
+            "no_appointments" to "No appointments scheduled.",
+            "completed_label" to "Completed",
+
+            // Per-profile export
+            "export_profile" to "Export Profile Data",
+            "select_profile" to "Select Profile",
+            "my_profile" to "My Profile",
+            "share_whatsapp" to "Share via WhatsApp",
+            "share_file" to "Share File",
+            "export_child_data" to "Export Child / Family Member Data"
         ),
         "ar" to mapOf(
             "dashboard" to "لوحة البيانات",
@@ -260,7 +344,91 @@ object LocalStrings {
             "last_backup" to "آخر نسخة احتياطية",
             "back_up" to "نسخ احتياطي",
             "restore" to "استرداد",
-            "export_media_zip" to "تصدير ملفات الوسائط (ZIP)"
+            "export_media_zip" to "تصدير ملفات الوسائط (ZIP)",
+
+            // i18n completions — dialog titles
+            "update" to "تحديث",
+            "record_bp" to "تسجيل ضغط الدم",
+            "edit_bp" to "تعديل ضغط الدم",
+            "add_weight" to "إضافة سجل وزن",
+            "edit_weight" to "تعديل الوزن",
+            "add_medication" to "إضافة دواء",
+            "edit_medication" to "تعديل الدواء",
+            "record_symptom" to "تسجيل عَرَض",
+            "edit_symptom" to "تعديل العَرَض",
+            "log_sleep" to "تسجيل النوم",
+            "edit_sleep" to "تعديل سجل النوم",
+            "add_lab_result" to "إضافة نتيجة مختبر",
+            "edit_lab_result" to "تعديل نتيجة المختبر",
+            "enter_attachment" to "أدخل تفاصيل المرفق",
+            "restore_status" to "حالة الاسترداد",
+
+            // Form field labels
+            "systolic_mmhg" to "الانقباضي (ملم زئبق)",
+            "diastolic_mmhg" to "الانبساطي (ملم زئبق)",
+            "heart_rate_bpm" to "معدل القلب (نبضة/دقيقة)",
+            "blood_sugar_value" to "قيمة سكر الدم",
+            "weight_kg_label" to "الوزن (كغ)",
+            "medication_name" to "اسم الدواء",
+            "dosage_hint" to "الجرعة (مثال: 10mg / 500mg)",
+            "frequency_hint" to "التكرار (مثال: مرة يومياً / مساءً)",
+            "symptom_desc" to "وصف العَرَض",
+            "hours_slept" to "ساعات النوم",
+            "test_name_hint" to "اسم الاختبار (مثال: الكوليسترول)",
+            "measurement_value" to "قيمة القياس",
+            "unit_hint" to "الوحدة (مثال: mg/dL)",
+            "ref_range_hint" to "النطاق المرجعي (مثال: 70-100، أو < 200)",
+            "log_amount" to "سجّل الكمية",
+            "attachment_title" to "العنوان / الوصف",
+            "unit_short" to "الوحدة",
+            "measurement_category" to "نوع القياس / الفئة",
+            "severity_status" to "مستوى الشدة",
+
+            // Status & messages
+            "no_attachments" to "لا توجد مرفقات بعد.",
+            "restore_successful" to "تم الاسترداد بنجاح! تم استيراد جميع السجلات.",
+            "backup_saved" to "تم حفظ النسخة الاحتياطية بنجاح!",
+            "search_hint_text" to "اكتب أي كلمة للبحث الفوري.",
+
+            // AI/Summary labels
+            "mood_log" to "سجل المزاج",
+            "ai_chat" to "المحادثة",
+            "generating_summary" to "جارٍ إنشاء ملخصك الصحي لـ 7 أيام...",
+            "ai_health_report" to "التقرير الصحي الأسبوعي بالذكاء الاصطناعي",
+            "ask_assistant" to "اسأل مساعدك الصحي...",
+            "generate_summary" to "إنشاء الملخص الأسبوعي",
+            "log_mood_btn" to "سجّل المزاج",
+            "send_btn" to "إرسال",
+
+            // Search labels
+            "bp_comments" to "تعليقات ضغط الدم",
+            "weight_comments" to "تعليقات سجلات الوزن",
+            "medication_matches" to "نتائج الأدوية",
+            "symptom_logs_label" to "سجلات الأعراض",
+
+            // Appointments
+            "appointments" to "المواعيد",
+            "add_appointment" to "إضافة موعد",
+            "edit_appointment" to "تعديل الموعد",
+            "appointment_title_field" to "العنوان (مثال: طبيب القلب، د. أحمد)",
+            "appointment_type" to "النوع",
+            "appt_doctor" to "زيارة طبيب",
+            "appt_medication" to "تذكير دواء",
+            "appt_lab" to "فحص مختبر",
+            "appt_other" to "أخرى",
+            "upcoming_appts" to "القادمة",
+            "past_appts" to "السابقة",
+            "mark_complete" to "تم",
+            "no_appointments" to "لا توجد مواعيد مجدولة.",
+            "completed_label" to "مكتمل",
+
+            // Per-profile export
+            "export_profile" to "تصدير بيانات الملف الشخصي",
+            "select_profile" to "اختر الملف الشخصي",
+            "my_profile" to "ملفي الشخصي",
+            "share_whatsapp" to "مشاركة عبر واتساب",
+            "share_file" to "مشاركة الملف",
+            "export_child_data" to "تصدير بيانات الطفل / أحد أفراد الأسرة"
         )
     )
 

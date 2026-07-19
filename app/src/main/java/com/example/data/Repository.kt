@@ -67,4 +67,10 @@ class HealthRepository(private val dao: HealthDao) {
     val allFamilyMembers: Flow<List<FamilyMemberProfile>> = dao.getAllFamilyMembers()
     suspend fun insertFamilyMember(profile: FamilyMemberProfile) = dao.insertFamilyMember(profile)
     suspend fun deleteFamilyMember(profile: FamilyMemberProfile) = dao.deleteFamilyMember(profile)
+
+    // --- Appointments ---
+    val allAppointments: Flow<List<AppointmentRecord>> = dao.getAllAppointments()
+    suspend fun insertAppointment(record: AppointmentRecord) = dao.insertAppointment(record)
+    suspend fun updateAppointment(record: AppointmentRecord) = dao.updateAppointment(record)
+    suspend fun deleteAppointment(record: AppointmentRecord) = dao.deleteAppointment(record)
 }
