@@ -29,10 +29,11 @@ jobs:
       - name: Install Android SDK platform 36
         run: sdkmanager "platforms;android-36" "build-tools;35.0.0"
 
-      - name: Setup Gradle 8.14.3
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.14.3'
+      - name: Install Gradle 8.14.3
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-8.14.3-bin.zip -O /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /opt/gradle-install
+          echo "/opt/gradle-install/gradle-8.14.3/bin" >> $GITHUB_PATH
 
       - name: Decode debug keystore
         run: |
@@ -42,6 +43,9 @@ jobs:
           else
             echo "No debug.keystore.base64 found, using default debug keystore"
           fi
+
+      - name: Verify Gradle version
+        run: gradle --version
 
       - name: Build signed debug APK
         run: gradle assembleDebug --no-daemon
@@ -78,10 +82,11 @@ jobs:
       - name: Install Android SDK platform 36
         run: sdkmanager "platforms;android-36" "build-tools;35.0.0"
 
-      - name: Setup Gradle 8.14.3
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.14.3'
+      - name: Install Gradle 8.14.3
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-8.14.3-bin.zip -O /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /opt/gradle-install
+          echo "/opt/gradle-install/gradle-8.14.3/bin" >> $GITHUB_PATH
 
       - name: Decode release keystore
         env:
@@ -94,6 +99,9 @@ jobs:
             echo "KEYSTORE_BASE64 secret not set — skipping release build"
             exit 1
           fi
+
+      - name: Verify Gradle version
+        run: gradle --version
 
       - name: Build signed release APK
         env:
