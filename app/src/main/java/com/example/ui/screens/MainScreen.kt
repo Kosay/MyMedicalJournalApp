@@ -26,9 +26,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -1448,6 +1450,85 @@ fun SleepDetailView(viewModel: HealthViewModel, lang: String) {
     }
 }
 
+// Parse "70-100", "< 200", "> 40" style reference strings into (min, max) floats.
+fun parseLabRefRange(ref: String): Pair<Float?, Float?> {
+    if (ref.isBlank()) return Pair(null, null)
+    Regex("""(\d+\.?\d*)\s*[-–]\s*(\d+\.?\d*)""").find(ref)?.let {
+        return Pair(it.groupValues[1].toFloat(), it.groupValues[2].toFloat())
+    }
+    Regex("""<=?\s*(\d+\.?\d*)""").find(ref)?.let { return Pair(null, it.groupValues[1].toFloat()) }
+    Regex(""">=?\s*(\d+\.?\d*)""").find(ref)?.let { return Pair(it.groupValues[1].toFloat(), null) }
+    return Pair(null, null)
+}
+
+@Composable
+fun LabGroupChart(
+    records: List<LabResultRecord>,
+    refMin: Float?,
+    refMax: Float?,
+    formatDate: (Long) -> String
+) {
+    val sorted = records.sortedBy { it.timestamp }
+    if (sorted.size < 2) return
+
+    val values = sorted.map { it.value }
+    val allForBounds = values + listOfNotNull(refMin, refMax)
+    val dataMin = allForBounds.minOrNull() ?: 0f
+    val dataMax = allForBounds.maxOrNull() ?: 1f
+    val pad = (dataMax - dataMin).coerceAtLeast(1f) * 0.12f
+    val rMin = dataMin - pad
+    val rMax = dataMax + pad
+    val span = (rMax - rMin).coerceAtLeast(0.001f)
+
+    val teal = HighlightTeal
+    val red = AlertRed
+    val bandColor = HighlightTeal.copy(alpha = 0.10f)
+    val dash = PathEffect.dashPathEffect(floatArrayOf(10f, 5f))
+
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        Canvas(modifier = Modifier.fillMaxWidth().height(96.dp)) {
+            val w = size.width
+            val h = size.height
+            val segW = if (sorted.size > 1) w / (sorted.size - 1) else w
+
+            fun yOf(v: Float) = h - ((v - rMin) / span) * h
+
+            // Reference band
+            if (refMin != null && refMax != null) {
+                val y1 = yOf(refMax)
+                val y2 = yOf(refMin)
+                drawRect(color = bandColor, topLeft = Offset(0f, y1.coerceAtMost(y2)), size = Size(w, (y2 - y1).coerceAtLeast(y1 - y2)))
+            }
+            // Reference lines
+            refMax?.let { drawLine(teal.copy(alpha = 0.45f), Offset(0f, yOf(it)), Offset(w, yOf(it)), strokeWidth = 1.dp.toPx(), pathEffect = dash) }
+            refMin?.let { drawLine(teal.copy(alpha = 0.45f), Offset(0f, yOf(it)), Offset(w, yOf(it)), strokeWidth = 1.dp.toPx(), pathEffect = dash) }
+
+            // Trend line
+            val path = Path()
+            sorted.forEachIndexed { i, r ->
+                val x = i * segW
+                val y = yOf(r.value)
+                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            drawPath(path, teal, style = Stroke(width = 2.5.dp.toPx()))
+
+            // Dots — red when out of range
+            sorted.forEachIndexed { i, r ->
+                val x = i * segW
+                val y = yOf(r.value)
+                val outOfRange = (refMin != null && r.value < refMin) || (refMax != null && r.value > refMax)
+                val dot = if (outOfRange) red else teal
+                drawCircle(Color.White, radius = 5.dp.toPx(), center = Offset(x, y))
+                drawCircle(dot, radius = 3.dp.toPx(), center = Offset(x, y))
+            }
+        }
+        Row(modifier = Modifier.fillMaxWidth().padding(top = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(formatDate(sorted.first().timestamp), fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+            Text(formatDate(sorted.last().timestamp), fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+        }
+    }
+}
+
 @Composable
 fun LabResultDetailView(viewModel: HealthViewModel, lang: String) {
     val records by viewModel.labResults.collectAsState()
@@ -1460,6 +1541,13 @@ fun LabResultDetailView(viewModel: HealthViewModel, lang: String) {
     var refStr by remember { mutableStateOf("") }
     var customTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
     val context = LocalContext.current
+
+    // Group by testName (case-insensitive) + unit, sorted chronologically within each group
+    val groups = records
+        .groupBy { "${it.testName.trim().lowercase(Locale.US)}|${it.unit.trim().lowercase(Locale.US)}" }
+        .values
+        .map { it.sortedByDescending { r -> r.timestamp } }
+        .sortedBy { it.first().testName.lowercase(Locale.US) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Button(
@@ -1476,37 +1564,119 @@ fun LabResultDetailView(viewModel: HealthViewModel, lang: String) {
 
         LazyColumn(
             modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            items(records) { record ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+            groups.forEach { group ->
+                val firstName = group.first().testName
+                val firstUnit = group.first().unit
+                val refRawText = group.firstOrNull { it.referenceRange.isNotEmpty() }?.referenceRange ?: ""
+                val (refMin, refMax) = parseLabRefRange(refRawText)
+                val chronological = group.sortedBy { it.timestamp }
+
+                item(key = "${firstName}|${firstUnit}") {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                        shape = RoundedCornerShape(14.dp)
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("${record.testName}: ${record.value} ${record.unit}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                            if (record.referenceRange.isNotEmpty()) {
-                                Text("Ref Range: ${record.referenceRange}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+                            // Group header
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(firstName, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
+                                    Text(firstUnit, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    if (refRawText.isNotEmpty()) {
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            "Ref: $refRawText",
+                                            fontSize = 11.sp,
+                                            color = HighlightTeal.copy(alpha = 0.85f)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    "${group.size} reading${if (group.size > 1) "s" else ""}",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+                                )
                             }
-                            Text(viewModel.formatDate(record.timestamp), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
-                        }
-                        Row {
-                            IconButton(onClick = {
-                                editingRecord = record
-                                testNameStr = record.testName; valueStr = record.value.toString()
-                                unitStr = record.unit; refStr = record.referenceRange
-                                customTimestamp = record.timestamp
-                                showDialog = true
-                            }) {
-                                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = HighlightTeal)
+
+                            // Trend chart with reference band
+                            if (chronological.size >= 2) {
+                                LabGroupChart(
+                                    records = chronological,
+                                    refMin = refMin,
+                                    refMax = refMax,
+                                    formatDate = viewModel::formatDate
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
                             }
-                            IconButton(onClick = { viewModel.deleteLabResult(record) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AlertRed)
+
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+                                modifier = Modifier.padding(vertical = 6.dp)
+                            )
+
+                            // Individual records (newest first)
+                            group.forEach { record ->
+                                val outOfRange = (refMin != null && record.value < refMin) ||
+                                    (refMax != null && record.value > refMax)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text(
+                                                "${record.value} ${record.unit}",
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 13.sp,
+                                                color = if (outOfRange) AlertRed else MaterialTheme.colorScheme.onSurface
+                                            )
+                                            if (outOfRange) {
+                                                Text(
+                                                    "OUT OF RANGE",
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = AlertRed,
+                                                    modifier = Modifier
+                                                        .background(AlertRed.copy(alpha = 0.12f), RoundedCornerShape(3.dp))
+                                                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                        }
+                                        if (record.notes.isNotEmpty()) {
+                                            Text(record.notes, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                                        }
+                                        Text(
+                                            viewModel.formatDate(record.timestamp),
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                        )
+                                    }
+                                    Row {
+                                        IconButton(onClick = {
+                                            editingRecord = record
+                                            testNameStr = record.testName; valueStr = record.value.toString()
+                                            unitStr = record.unit; refStr = record.referenceRange
+                                            customTimestamp = record.timestamp
+                                            showDialog = true
+                                        }) {
+                                            Icon(Icons.Default.Edit, contentDescription = "Edit", tint = HighlightTeal, modifier = Modifier.size(18.dp))
+                                        }
+                                        IconButton(onClick = { viewModel.deleteLabResult(record) }) {
+                                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AlertRed, modifier = Modifier.size(18.dp))
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -1525,8 +1695,8 @@ fun LabResultDetailView(viewModel: HealthViewModel, lang: String) {
                     Text(if (editingRecord != null) "Edit Lab Result" else "Add Lab Result Record", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     OutlinedTextField(value = testNameStr, onValueChange = { testNameStr = it }, label = { Text("Test Name (e.g. Cholesterol)") }, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = valueStr, onValueChange = { valueStr = it }, label = { Text("Measurement Value") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = unitStr, onValueChange = { unitStr = it }, label = { Text("Unit (e.g. mg/dL)") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = refStr, onValueChange = { refStr = it }, label = { Text("Reference Range (e.g. < 200 mg/dL)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = unitStr, onValueChange = { unitStr = it }, label = { Text("Unit (e.g. mg/dL, mmol/L)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = refStr, onValueChange = { refStr = it }, label = { Text("Reference Range (e.g. 70-100, < 200, > 40)") }, modifier = Modifier.fillMaxWidth())
                     DateTimePickerInline(context = context, timestamp = customTimestamp, onTimestampChange = { customTimestamp = it })
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                         TextButton(onClick = { showDialog = false; editingRecord = null }) { Text("Cancel") }
