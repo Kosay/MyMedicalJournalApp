@@ -134,4 +134,17 @@ interface HealthDao {
 
     @Delete
     suspend fun deleteFamilyMember(profile: FamilyMemberProfile)
+
+    // --- Appointments ---
+    @Query("SELECT * FROM appointments ORDER BY dateTimestamp ASC")
+    fun getAllAppointments(): Flow<List<AppointmentRecord>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAppointment(record: AppointmentRecord)
+
+    @Update
+    suspend fun updateAppointment(record: AppointmentRecord)
+
+    @Delete
+    suspend fun deleteAppointment(record: AppointmentRecord)
 }

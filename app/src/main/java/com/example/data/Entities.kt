@@ -117,6 +117,18 @@ data class MedicationDoseRecord(
     val notes: String = ""
 )
 
+@Entity(tableName = "appointments")
+data class AppointmentRecord(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val title: String,
+    val type: String = "Doctor",    // "Doctor" | "Medication" | "Lab" | "Other"
+    val dateTimestamp: Long,
+    val notes: String = "",
+    val profileId: Int = 0,         // 0 = main user, else FamilyMemberProfile.id
+    val profileName: String = "",   // display name for multi-profile context
+    val isCompleted: Boolean = false
+)
+
 @Entity(tableName = "family_members")
 data class FamilyMemberProfile(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,

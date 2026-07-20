@@ -26,9 +26,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -604,6 +606,7 @@ fun DangerAlertBanner(alert: DangerAlert, onDismiss: () -> Unit) {
 // ------------------------------------------
 @Composable
 fun BpDetailView(viewModel: HealthViewModel, lang: String) {
+    fun trans(key: String) = LocalStrings.get(key, lang)
     val records by viewModel.bloodPressureRecords.collectAsState()
     val correlationData by viewModel.bpCorrelationData.collectAsState()
     val dangerAlert by viewModel.dangerAlert.collectAsState()
@@ -746,30 +749,30 @@ fun BpDetailView(viewModel: HealthViewModel, lang: String) {
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        if (editingRecord != null) "Edit Blood Pressure" else "Record Blood Pressure",
+                        if (editingRecord != null) trans("edit_bp") else trans("record_bp"),
                         fontWeight = FontWeight.Bold, fontSize = 16.sp
                     )
                     OutlinedTextField(
                         value = systolicStr, onValueChange = { systolicStr = it },
-                        label = { Text("Systolic (mmHg)") },
+                        label = { Text(trans("systolic_mmhg")) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         value = diastolicStr, onValueChange = { diastolicStr = it },
-                        label = { Text("Diastolic (mmHg)") },
+                        label = { Text(trans("diastolic_mmhg")) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         value = hrStr, onValueChange = { hrStr = it },
-                        label = { Text("Heart Rate (bpm)") },
+                        label = { Text(trans("heart_rate_bpm")) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         value = notesStr, onValueChange = { notesStr = it },
-                        label = { Text("Notes") },
+                        label = { Text(trans("notes")) },
                         modifier = Modifier.fillMaxWidth()
                     )
                     DateTimePickerInline(
@@ -810,6 +813,7 @@ fun BpDetailView(viewModel: HealthViewModel, lang: String) {
 
 @Composable
 fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
+    fun trans(key: String) = LocalStrings.get(key, lang)
     val records by viewModel.bloodSugarRecords.collectAsState()
     val dangerAlert by viewModel.dangerAlert.collectAsState()
     var showDialog by remember { mutableStateOf(false) }
@@ -927,16 +931,16 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        if (editingRecord != null) "Edit Blood Sugar" else "Record Blood Sugar Level",
+                        trans("blood_sugar"),
                         fontWeight = FontWeight.Bold, fontSize = 16.sp
                     )
                     OutlinedTextField(
                         value = sugarStr, onValueChange = { sugarStr = it },
-                        label = { Text("Blood Sugar Value") },
+                        label = { Text(trans("blood_sugar_value")) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Text("Unit", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(trans("unit_short"), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         units.forEach { u ->
                             val isSelected = unitSelection == u
@@ -951,7 +955,7 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
                             }
                         }
                     }
-                    Text("Measurement Type / Category", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(trans("measurement_category"), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         categories.forEach { cat ->
                             val isSelected = categorySelection == cat
@@ -1020,6 +1024,7 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
 
 @Composable
 fun WeightDetailView(viewModel: HealthViewModel, lang: String) {
+    fun trans(key: String) = LocalStrings.get(key, lang)
     val records by viewModel.weightRecords.collectAsState()
     var showDialog by remember { mutableStateOf(false) }
     var editingRecord by remember { mutableStateOf<com.example.data.WeightRecord?>(null) }
@@ -1095,10 +1100,10 @@ fun WeightDetailView(viewModel: HealthViewModel, lang: String) {
                     modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(if (editingRecord != null) "Edit Weight" else "Add Weight Record", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text(if (editingRecord != null) trans("edit_weight") else trans("add_weight"), fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     OutlinedTextField(
                         value = weightStr, onValueChange = { weightStr = it },
-                        label = { Text("Weight (kg)") },
+                        label = { Text(trans("weight_kg_label")) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1132,6 +1137,7 @@ fun WeightDetailView(viewModel: HealthViewModel, lang: String) {
 
 @Composable
 fun MedicationDetailView(viewModel: HealthViewModel, lang: String) {
+    fun trans(key: String) = LocalStrings.get(key, lang)
     val records by viewModel.medications.collectAsState()
     var showDialog by remember { mutableStateOf(false) }
     var editingRecord by remember { mutableStateOf<com.example.data.MedicationRecord?>(null) }
@@ -1203,10 +1209,10 @@ fun MedicationDetailView(viewModel: HealthViewModel, lang: String) {
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(if (editingRecord != null) "Edit Medication" else "Add Medication", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    OutlinedTextField(value = nameStr, onValueChange = { nameStr = it }, label = { Text("Medication Name") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = dosageStr, onValueChange = { dosageStr = it }, label = { Text("Dosage (e.g. 10mg / 500mg)") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = freqStr, onValueChange = { freqStr = it }, label = { Text("Frequency (e.g. Once daily / evening)") }, modifier = Modifier.fillMaxWidth())
+                    Text(if (editingRecord != null) trans("edit_medication") else trans("add_medication"), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    OutlinedTextField(value = nameStr, onValueChange = { nameStr = it }, label = { Text(trans("medication_name")) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = dosageStr, onValueChange = { dosageStr = it }, label = { Text(trans("dosage_hint")) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = freqStr, onValueChange = { freqStr = it }, label = { Text(trans("frequency_hint")) }, modifier = Modifier.fillMaxWidth())
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Switch(checked = isActiveState, onCheckedChange = { isActiveState = it }, colors = SwitchDefaults.colors(checkedThumbColor = HighlightTeal, checkedTrackColor = HighlightTeal.copy(alpha = 0.4f)))
                         Spacer(modifier = Modifier.width(8.dp))
@@ -1236,6 +1242,7 @@ fun MedicationDetailView(viewModel: HealthViewModel, lang: String) {
 
 @Composable
 fun SymptomDetailView(viewModel: HealthViewModel, lang: String) {
+    fun trans(key: String) = LocalStrings.get(key, lang)
     val records by viewModel.symptoms.collectAsState()
     var showDialog by remember { mutableStateOf(false) }
     var editingRecord by remember { mutableStateOf<com.example.data.SymptomRecord?>(null) }
@@ -1312,9 +1319,9 @@ fun SymptomDetailView(viewModel: HealthViewModel, lang: String) {
                     modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(if (editingRecord != null) "Edit Symptom" else "Record Symptom", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    OutlinedTextField(value = symptomStr, onValueChange = { symptomStr = it }, label = { Text("Symptom Description") }, modifier = Modifier.fillMaxWidth())
-                    Text("Severity Status", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text(if (editingRecord != null) trans("edit_symptom") else trans("record_symptom"), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    OutlinedTextField(value = symptomStr, onValueChange = { symptomStr = it }, label = { Text(trans("symptom_desc")) }, modifier = Modifier.fillMaxWidth())
+                    Text(trans("severity_status"), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf("Mild", "Moderate", "Severe").forEach { m ->
                             val active = m == severityStr
@@ -1323,7 +1330,7 @@ fun SymptomDetailView(viewModel: HealthViewModel, lang: String) {
                             }
                         }
                     }
-                    OutlinedTextField(value = notesStr, onValueChange = { notesStr = it }, label = { Text("Additional notes") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = notesStr, onValueChange = { notesStr = it }, label = { Text(trans("notes")) }, modifier = Modifier.fillMaxWidth())
                     DateTimePickerInline(context = context, timestamp = customTimestamp, onTimestampChange = { customTimestamp = it })
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                         TextButton(onClick = { showDialog = false; editingRecord = null }) { Text("Cancel") }
@@ -1349,6 +1356,7 @@ fun SymptomDetailView(viewModel: HealthViewModel, lang: String) {
 
 @Composable
 fun SleepDetailView(viewModel: HealthViewModel, lang: String) {
+    fun trans(key: String) = LocalStrings.get(key, lang)
     val records by viewModel.sleepRecords.collectAsState()
     var showDialog by remember { mutableStateOf(false) }
     var editingRecord by remember { mutableStateOf<com.example.data.SleepRecord?>(null) }
@@ -1421,9 +1429,9 @@ fun SleepDetailView(viewModel: HealthViewModel, lang: String) {
                     modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(if (editingRecord != null) "Edit Sleep" else "Log Sleep", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    OutlinedTextField(value = hoursStr, onValueChange = { hoursStr = it }, label = { Text("Hours slept") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = notesStr, onValueChange = { notesStr = it }, label = { Text("Notes (e.g. felt deep rested / interrupted)") }, modifier = Modifier.fillMaxWidth())
+                    Text(if (editingRecord != null) trans("edit_sleep") else trans("log_sleep"), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    OutlinedTextField(value = hoursStr, onValueChange = { hoursStr = it }, label = { Text(trans("hours_slept")) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = notesStr, onValueChange = { notesStr = it }, label = { Text(trans("notes")) }, modifier = Modifier.fillMaxWidth())
                     DateTimePickerInline(context = context, timestamp = customTimestamp, onTimestampChange = { customTimestamp = it })
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                         TextButton(onClick = { showDialog = false; editingRecord = null }) { Text("Cancel") }
@@ -1448,8 +1456,88 @@ fun SleepDetailView(viewModel: HealthViewModel, lang: String) {
     }
 }
 
+// Parse "70-100", "< 200", "> 40" style reference strings into (min, max) floats.
+fun parseLabRefRange(ref: String): Pair<Float?, Float?> {
+    if (ref.isBlank()) return Pair(null, null)
+    Regex("""(\d+\.?\d*)\s*[-–]\s*(\d+\.?\d*)""").find(ref)?.let {
+        return Pair(it.groupValues[1].toFloat(), it.groupValues[2].toFloat())
+    }
+    Regex("""<=?\s*(\d+\.?\d*)""").find(ref)?.let { return Pair(null, it.groupValues[1].toFloat()) }
+    Regex(""">=?\s*(\d+\.?\d*)""").find(ref)?.let { return Pair(it.groupValues[1].toFloat(), null) }
+    return Pair(null, null)
+}
+
+@Composable
+fun LabGroupChart(
+    records: List<LabResultRecord>,
+    refMin: Float?,
+    refMax: Float?,
+    formatDate: (Long) -> String
+) {
+    val sorted = records.sortedBy { it.timestamp }
+    if (sorted.size < 2) return
+
+    val values = sorted.map { it.value }
+    val allForBounds = values + listOfNotNull(refMin, refMax)
+    val dataMin = allForBounds.minOrNull() ?: 0f
+    val dataMax = allForBounds.maxOrNull() ?: 1f
+    val pad = (dataMax - dataMin).coerceAtLeast(1f) * 0.12f
+    val rMin = dataMin - pad
+    val rMax = dataMax + pad
+    val span = (rMax - rMin).coerceAtLeast(0.001f)
+
+    val teal = HighlightTeal
+    val red = AlertRed
+    val bandColor = HighlightTeal.copy(alpha = 0.10f)
+    val dash = PathEffect.dashPathEffect(floatArrayOf(10f, 5f))
+
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        Canvas(modifier = Modifier.fillMaxWidth().height(96.dp)) {
+            val w = size.width
+            val h = size.height
+            val segW = if (sorted.size > 1) w / (sorted.size - 1) else w
+
+            fun yOf(v: Float) = h - ((v - rMin) / span) * h
+
+            // Reference band
+            if (refMin != null && refMax != null) {
+                val y1 = yOf(refMax)
+                val y2 = yOf(refMin)
+                drawRect(color = bandColor, topLeft = Offset(0f, y1.coerceAtMost(y2)), size = Size(w, (y2 - y1).coerceAtLeast(y1 - y2)))
+            }
+            // Reference lines
+            refMax?.let { drawLine(teal.copy(alpha = 0.45f), Offset(0f, yOf(it)), Offset(w, yOf(it)), strokeWidth = 1.dp.toPx(), pathEffect = dash) }
+            refMin?.let { drawLine(teal.copy(alpha = 0.45f), Offset(0f, yOf(it)), Offset(w, yOf(it)), strokeWidth = 1.dp.toPx(), pathEffect = dash) }
+
+            // Trend line
+            val path = Path()
+            sorted.forEachIndexed { i, r ->
+                val x = i * segW
+                val y = yOf(r.value)
+                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            drawPath(path, teal, style = Stroke(width = 2.5.dp.toPx()))
+
+            // Dots — red when out of range
+            sorted.forEachIndexed { i, r ->
+                val x = i * segW
+                val y = yOf(r.value)
+                val outOfRange = (refMin != null && r.value < refMin) || (refMax != null && r.value > refMax)
+                val dot = if (outOfRange) red else teal
+                drawCircle(Color.White, radius = 5.dp.toPx(), center = Offset(x, y))
+                drawCircle(dot, radius = 3.dp.toPx(), center = Offset(x, y))
+            }
+        }
+        Row(modifier = Modifier.fillMaxWidth().padding(top = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(formatDate(sorted.first().timestamp), fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+            Text(formatDate(sorted.last().timestamp), fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+        }
+    }
+}
+
 @Composable
 fun LabResultDetailView(viewModel: HealthViewModel, lang: String) {
+    fun trans(key: String) = LocalStrings.get(key, lang)
     val records by viewModel.labResults.collectAsState()
     var showDialog by remember { mutableStateOf(false) }
     var editingRecord by remember { mutableStateOf<com.example.data.LabResultRecord?>(null) }
@@ -1460,6 +1548,13 @@ fun LabResultDetailView(viewModel: HealthViewModel, lang: String) {
     var refStr by remember { mutableStateOf("") }
     var customTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
     val context = LocalContext.current
+
+    // Group by testName (case-insensitive) + unit, sorted chronologically within each group
+    val groups = records
+        .groupBy { "${it.testName.trim().lowercase(Locale.US)}|${it.unit.trim().lowercase(Locale.US)}" }
+        .values
+        .map { it.sortedByDescending { r -> r.timestamp } }
+        .sortedBy { it.first().testName.lowercase(Locale.US) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Button(
@@ -1476,37 +1571,119 @@ fun LabResultDetailView(viewModel: HealthViewModel, lang: String) {
 
         LazyColumn(
             modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            items(records) { record ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+            groups.forEach { group ->
+                val firstName = group.first().testName
+                val firstUnit = group.first().unit
+                val refRawText = group.firstOrNull { it.referenceRange.isNotEmpty() }?.referenceRange ?: ""
+                val (refMin, refMax) = parseLabRefRange(refRawText)
+                val chronological = group.sortedBy { it.timestamp }
+
+                item(key = "${firstName}|${firstUnit}") {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                        shape = RoundedCornerShape(14.dp)
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("${record.testName}: ${record.value} ${record.unit}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                            if (record.referenceRange.isNotEmpty()) {
-                                Text("Ref Range: ${record.referenceRange}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+                            // Group header
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(firstName, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
+                                    Text(firstUnit, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    if (refRawText.isNotEmpty()) {
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            "Ref: $refRawText",
+                                            fontSize = 11.sp,
+                                            color = HighlightTeal.copy(alpha = 0.85f)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    "${group.size} reading${if (group.size > 1) "s" else ""}",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+                                )
                             }
-                            Text(viewModel.formatDate(record.timestamp), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
-                        }
-                        Row {
-                            IconButton(onClick = {
-                                editingRecord = record
-                                testNameStr = record.testName; valueStr = record.value.toString()
-                                unitStr = record.unit; refStr = record.referenceRange
-                                customTimestamp = record.timestamp
-                                showDialog = true
-                            }) {
-                                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = HighlightTeal)
+
+                            // Trend chart with reference band
+                            if (chronological.size >= 2) {
+                                LabGroupChart(
+                                    records = chronological,
+                                    refMin = refMin,
+                                    refMax = refMax,
+                                    formatDate = viewModel::formatDate
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
                             }
-                            IconButton(onClick = { viewModel.deleteLabResult(record) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AlertRed)
+
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+                                modifier = Modifier.padding(vertical = 6.dp)
+                            )
+
+                            // Individual records (newest first)
+                            group.forEach { record ->
+                                val outOfRange = (refMin != null && record.value < refMin) ||
+                                    (refMax != null && record.value > refMax)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text(
+                                                "${record.value} ${record.unit}",
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 13.sp,
+                                                color = if (outOfRange) AlertRed else MaterialTheme.colorScheme.onSurface
+                                            )
+                                            if (outOfRange) {
+                                                Text(
+                                                    "OUT OF RANGE",
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = AlertRed,
+                                                    modifier = Modifier
+                                                        .background(AlertRed.copy(alpha = 0.12f), RoundedCornerShape(3.dp))
+                                                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                        }
+                                        if (record.notes.isNotEmpty()) {
+                                            Text(record.notes, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                                        }
+                                        Text(
+                                            viewModel.formatDate(record.timestamp),
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                        )
+                                    }
+                                    Row {
+                                        IconButton(onClick = {
+                                            editingRecord = record
+                                            testNameStr = record.testName; valueStr = record.value.toString()
+                                            unitStr = record.unit; refStr = record.referenceRange
+                                            customTimestamp = record.timestamp
+                                            showDialog = true
+                                        }) {
+                                            Icon(Icons.Default.Edit, contentDescription = "Edit", tint = HighlightTeal, modifier = Modifier.size(18.dp))
+                                        }
+                                        IconButton(onClick = { viewModel.deleteLabResult(record) }) {
+                                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AlertRed, modifier = Modifier.size(18.dp))
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -1522,11 +1699,11 @@ fun LabResultDetailView(viewModel: HealthViewModel, lang: String) {
                     modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(if (editingRecord != null) "Edit Lab Result" else "Add Lab Result Record", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    OutlinedTextField(value = testNameStr, onValueChange = { testNameStr = it }, label = { Text("Test Name (e.g. Cholesterol)") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = valueStr, onValueChange = { valueStr = it }, label = { Text("Measurement Value") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = unitStr, onValueChange = { unitStr = it }, label = { Text("Unit (e.g. mg/dL)") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = refStr, onValueChange = { refStr = it }, label = { Text("Reference Range (e.g. < 200 mg/dL)") }, modifier = Modifier.fillMaxWidth())
+                    Text(if (editingRecord != null) trans("edit_lab_result") else trans("add_lab_result"), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    OutlinedTextField(value = testNameStr, onValueChange = { testNameStr = it }, label = { Text(trans("test_name_hint")) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = valueStr, onValueChange = { valueStr = it }, label = { Text(trans("measurement_value")) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = unitStr, onValueChange = { unitStr = it }, label = { Text(trans("unit_hint")) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = refStr, onValueChange = { refStr = it }, label = { Text(trans("ref_range_hint")) }, modifier = Modifier.fillMaxWidth())
                     DateTimePickerInline(context = context, timestamp = customTimestamp, onTimestampChange = { customTimestamp = it })
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                         TextButton(onClick = { showDialog = false; editingRecord = null }) { Text("Cancel") }
@@ -2103,7 +2280,7 @@ fun isToday(timestamp: Long): Boolean {
 // ==========================================
 // 4. MORE SCREEN (Minds Screenshot 2)
 // ==========================================
-enum class MoreSection { NONE, ATTACHMENTS, EMERGENCY, SUMMARY, SEARCH, AI_ASSISTANT, FAMILY }
+enum class MoreSection { NONE, ATTACHMENTS, EMERGENCY, SUMMARY, SEARCH, AI_ASSISTANT, FAMILY, APPOINTMENTS }
 
 @Composable
 fun MoreScreen(viewModel: HealthViewModel, lang: String) {
@@ -2118,6 +2295,7 @@ fun MoreScreen(viewModel: HealthViewModel, lang: String) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             val sections = listOf(
+                Pair("appointments", MoreSection.APPOINTMENTS),
                 Pair("attachments", MoreSection.ATTACHMENTS),
                 Pair("emergency_info", MoreSection.EMERGENCY),
                 Pair("family_members", MoreSection.FAMILY),
@@ -2162,6 +2340,7 @@ fun MoreScreen(viewModel: HealthViewModel, lang: String) {
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 val titleString = when(activeSub) {
+                    MoreSection.APPOINTMENTS -> trans("appointments")
                     MoreSection.ATTACHMENTS -> trans("attachments")
                     MoreSection.EMERGENCY -> trans("emergency_info")
                     MoreSection.FAMILY -> trans("family_members")
@@ -2174,6 +2353,7 @@ fun MoreScreen(viewModel: HealthViewModel, lang: String) {
 
             Box(modifier = Modifier.weight(1f)) {
                 when(activeSub) {
+                    MoreSection.APPOINTMENTS -> AppointmentsView(viewModel, lang)
                     MoreSection.ATTACHMENTS -> DocumentAttachmentsView(viewModel, lang)
                     MoreSection.EMERGENCY -> EmergencyCardView(viewModel, lang)
                     MoreSection.FAMILY -> FamilyMembersView(viewModel, lang)
@@ -2190,6 +2370,217 @@ fun MoreScreen(viewModel: HealthViewModel, lang: String) {
 // ------------------------------------------
 // SUB-VIEWS FOR MORE SCREEN
 // ------------------------------------------
+
+// Appointments & Reminders
+@Composable
+fun AppointmentsView(viewModel: HealthViewModel, lang: String) {
+    fun trans(key: String) = LocalStrings.get(key, lang)
+    val appointments by viewModel.appointments.collectAsState()
+    val now = System.currentTimeMillis()
+
+    var showDialog by remember { mutableStateOf(false) }
+    var editingRecord by remember { mutableStateOf<com.example.data.AppointmentRecord?>(null) }
+    var titleStr by remember { mutableStateOf("") }
+    var selectedType by remember { mutableStateOf("Doctor") }
+    var notesStr by remember { mutableStateOf("") }
+    var dateTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
+    var showUpcoming by remember { mutableStateOf(true) }
+
+    val context = LocalContext.current
+    val types = listOf("Doctor", "Medication", "Lab", "Other")
+    val typeLabels = mapOf(
+        "Doctor" to trans("appt_doctor"),
+        "Medication" to trans("appt_medication"),
+        "Lab" to trans("appt_lab"),
+        "Other" to trans("appt_other")
+    )
+
+    val upcoming = appointments.filter { !it.isCompleted && it.dateTimestamp >= now }.sortedBy { it.dateTimestamp }
+    val past = appointments.filter { it.isCompleted || it.dateTimestamp < now }.sortedByDescending { it.dateTimestamp }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Button(
+            onClick = {
+                editingRecord = null; titleStr = ""; selectedType = "Doctor"; notesStr = ""
+                dateTimestamp = System.currentTimeMillis()
+                showDialog = true
+            },
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
+        ) {
+            Text(trans("add_appointment"), color = SlateDarkBg, fontWeight = FontWeight.Bold)
+        }
+
+        // Upcoming / Past toggle
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(true to trans("upcoming_appts"), false to trans("past_appts")).forEach { (isUpcoming, label) ->
+                FilterChip(
+                    selected = showUpcoming == isUpcoming,
+                    onClick = { showUpcoming = isUpcoming },
+                    label = { Text(label) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = HighlightTeal,
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                        enabled = true, selected = showUpcoming == isUpcoming,
+                        selectedBorderColor = HighlightTeal,
+                        borderColor = MaterialTheme.colorScheme.outlineVariant
+                    )
+                )
+            }
+        }
+
+        val displayed = if (showUpcoming) upcoming else past
+
+        if (displayed.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(trans("no_appointments"), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(displayed) { appt ->
+                    val typeIcon = when (appt.type) {
+                        "Medication" -> Icons.Default.MedicalServices
+                        "Lab" -> Icons.Default.Science
+                        else -> Icons.Default.LocalHospital
+                    }
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (appt.isCompleted)
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp))
+                                    .background(HighlightTeal.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(typeIcon, null, tint = HighlightTeal, modifier = Modifier.size(20.dp))
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    appt.title,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 14.sp,
+                                    color = if (appt.isCompleted) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                    else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    typeLabels[appt.type] ?: appt.type,
+                                    fontSize = 11.sp,
+                                    color = HighlightTeal.copy(alpha = 0.8f)
+                                )
+                                Text(
+                                    viewModel.formatDate(appt.dateTimestamp),
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                )
+                                if (appt.profileName.isNotEmpty()) {
+                                    Text("For: ${appt.profileName}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                                }
+                                if (appt.notes.isNotEmpty()) {
+                                    Text(appt.notes, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                                }
+                                if (appt.isCompleted) {
+                                    Text(trans("completed_label"), fontSize = 10.sp, color = HighlightTeal, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                                IconButton(onClick = { viewModel.toggleAppointmentComplete(appt) }, modifier = Modifier.size(32.dp)) {
+                                    Icon(
+                                        if (appt.isCompleted) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                                        null,
+                                        tint = if (appt.isCompleted) HighlightTeal else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                IconButton(onClick = {
+                                    editingRecord = appt
+                                    titleStr = appt.title; selectedType = appt.type
+                                    notesStr = appt.notes; dateTimestamp = appt.dateTimestamp
+                                    showDialog = true
+                                }, modifier = Modifier.size(32.dp)) {
+                                    Icon(Icons.Default.Edit, null, tint = HighlightTeal, modifier = Modifier.size(16.dp))
+                                }
+                                IconButton(onClick = { viewModel.deleteAppointment(appt) }, modifier = Modifier.size(32.dp)) {
+                                    Icon(Icons.Default.Delete, null, tint = AlertRed, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showDialog) {
+        Dialog(onDismissRequest = { showDialog = false; editingRecord = null }) {
+            Card(modifier = Modifier.fillMaxWidth().padding(16.dp), shape = RoundedCornerShape(16.dp)) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(if (editingRecord != null) trans("edit_appointment") else trans("add_appointment"), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    OutlinedTextField(
+                        value = titleStr, onValueChange = { titleStr = it },
+                        label = { Text(trans("appointment_title_field")) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(trans("appointment_type"), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        types.forEach { t ->
+                            val isSelected = selectedType == t
+                            Card(
+                                modifier = Modifier.weight(1f).clickable { selectedType = t },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = CardDefaults.cardColors(containerColor = if (isSelected) HighlightTeal else MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
+                                    Text(typeLabels[t] ?: t, fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) SlateDarkBg else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center)
+                                }
+                            }
+                        }
+                    }
+                    DateTimePickerInline(context = context, timestamp = dateTimestamp, onTimestampChange = { dateTimestamp = it })
+                    OutlinedTextField(value = notesStr, onValueChange = { notesStr = it }, label = { Text(trans("notes")) }, modifier = Modifier.fillMaxWidth())
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { showDialog = false; editingRecord = null }) { Text(trans("cancel")) }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                val rec = editingRecord
+                                if (rec != null) {
+                                    viewModel.updateAppointment(rec.copy(title = titleStr, type = selectedType, dateTimestamp = dateTimestamp, notes = notesStr))
+                                } else {
+                                    viewModel.addAppointment(titleStr, selectedType, dateTimestamp, notesStr)
+                                }
+                                showDialog = false; editingRecord = null
+                                titleStr = ""; notesStr = ""
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
+                        ) {
+                            Text(if (editingRecord != null) trans("update") else trans("save"), color = SlateDarkBg, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 // Document Attachments
 @Composable
@@ -3038,7 +3429,7 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
     ) { uri: Uri? ->
         if (uri != null) {
             viewModel.importLocalBackup(context, uri) { success, msg ->
-                importStatusMessage = if (success) "Restore successful: All medical entries have been imported!" else "Restore failed: $msg"
+                importStatusMessage = if (success) trans("restore_successful") else "${trans("restore_status")}: $msg"
                 showImportStatus = true
             }
         }
@@ -3049,7 +3440,7 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
     ) { uri: Uri? ->
         if (uri != null) {
             viewModel.writeLocalBackupToUri(context, uri) { success, msg ->
-                importStatusMessage = if (success) "Backup saved successfully!" else "Backup failed: $msg"
+                importStatusMessage = if (success) trans("backup_saved") else "${trans("backup_sync")}: $msg"
                 showImportStatus = true
             }
         }
@@ -3236,7 +3627,77 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
             }
         }
 
-        // Export for Doctor (DataDoctorPro-compatible CSV)
+        // Per-profile export (mother + each child/family member)
+        item {
+            val familyMembers by viewModel.familyMembers.collectAsState()
+            var selectedProfile by remember { mutableStateOf<com.example.data.FamilyMemberProfile?>(null) }
+
+            Text(trans("export_profile"), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = HighlightTeal)
+
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                colors = CardDefaults.cardColors(containerColor = SlateCardBg),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(trans("select_profile"), fontSize = 12.sp, color = Color.White.copy(alpha = 0.7f))
+
+                    // Profile selector chips
+                    val allProfiles = listOf(null) + familyMembers
+                    allProfiles.forEach { member ->
+                        val label = member?.name ?: trans("my_profile")
+                        val isSelected = selectedProfile == member
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) HighlightTeal.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.05f))
+                                .clickable { selectedProfile = member }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                label + if (member?.relationship?.isNotEmpty() == true) " (${member.relationship})" else "",
+                                fontSize = 13.sp,
+                                color = if (isSelected) HighlightTeal else Color.White
+                            )
+                            if (isSelected) {
+                                Icon(Icons.Default.CheckCircle, null, tint = HighlightTeal, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+
+                    // Export buttons
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = { viewModel.exportProfileData(context, selectedProfile) },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Default.Share, null, modifier = Modifier.size(14.dp), tint = SlateDarkBg)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(trans("share_file"), color = SlateDarkBg, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Button(
+                            onClick = { viewModel.shareFileViaWhatsApp(context, selectedProfile) },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Default.Forum, null, modifier = Modifier.size(14.dp), tint = Color.White)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(trans("share_whatsapp"), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Export for Doctor (local CSV — no internet)
         item {
             Text(trans("export_for_doctor"), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = HighlightTeal)
 

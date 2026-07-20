@@ -254,6 +254,9 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
     val familyMembers: StateFlow<List<FamilyMemberProfile>> = repository.allFamilyMembers
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val appointments: StateFlow<List<AppointmentRecord>> = repository.allAppointments
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // Water goal (ml/day) stored in SharedPrefs
     private val _waterGoalMl = MutableStateFlow(sharedPrefs.getInt("waterGoalMl", 2000))
     val waterGoalMl: StateFlow<Int> = _waterGoalMl.asStateFlow()
@@ -678,6 +681,169 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
 
     fun deleteFamilyMember(profile: FamilyMemberProfile) {
         viewModelScope.launch(Dispatchers.IO) { repository.deleteFamilyMember(profile) }
+    }
+
+    // --- Appointments ---
+    fun addAppointment(title: String, type: String, dateTimestamp: Long, notes: String,
+                       profileId: Int = 0, profileName: String = "") {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertAppointment(
+                AppointmentRecord(title = title, type = type, dateTimestamp = dateTimestamp,
+                    notes = notes, profileId = profileId, profileName = profileName)
+            )
+        }
+    }
+
+    fun updateAppointment(record: AppointmentRecord) {
+        viewModelScope.launch(Dispatchers.IO) { repository.updateAppointment(record) }
+    }
+
+    fun deleteAppointment(record: AppointmentRecord) {
+        viewModelScope.launch(Dispatchers.IO) { repository.deleteAppointment(record) }
+    }
+
+    fun toggleAppointmentComplete(record: AppointmentRecord) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.updateAppointment(record.copy(isCompleted = !record.isCompleted))
+        }
+    }
+
+    // --- Per-profile export (local file share — no internet) ---
+    fun exportProfileData(context: Context, familyMember: FamilyMemberProfile?) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val json = JSONObject()
+                if (familyMember == null) {
+                    // Main user profile
+                    val info = _emergencyInfo.value
+                    json.put("profile_type", "main_user")
+                    json.put("name", info?.fullName ?: "")
+                    json.put("blood_type", info?.bloodType ?: "")
+                    json.put("sex", info?.sex ?: "")
+                    json.put("chronic_conditions", info?.chronicConditions ?: "")
+                    json.put("allergies", info?.allergies ?: "")
+                    json.put("emergency_contact", info?.contactName ?: "")
+                    json.put("emergency_phone", info?.contactPhone ?: "")
+                    json.put("additional_notes", info?.additionalNotes ?: "")
+                    json.put("blood_pressure", toJsonArray(bloodPressureRecords.value.map { r ->
+                        JSONObject().put("systolic", r.systolic).put("diastolic", r.diastolic)
+                            .put("heart_rate", r.heartRate).put("timestamp", formatDate(r.timestamp)).put("notes", r.notes)
+                    }))
+                    json.put("blood_sugar", toJsonArray(bloodSugarRecords.value.map { r ->
+                        JSONObject().put("value", r.value).put("unit", r.unit).put("category", r.category)
+                            .put("timestamp", formatDate(r.timestamp)).put("notes", r.notes)
+                    }))
+                    json.put("weight", toJsonArray(weightRecords.value.map { r ->
+                        JSONObject().put("weight_kg", r.weightKg).put("timestamp", formatDate(r.timestamp)).put("notes", r.notes)
+                    }))
+                    json.put("medications", toJsonArray(medications.value.map { r ->
+                        JSONObject().put("name", r.name).put("dosage", r.dosage).put("frequency", r.frequency).put("active", r.isActive)
+                    }))
+                    json.put("lab_results", toJsonArray(labResults.value.map { r ->
+                        JSONObject().put("test", r.testName).put("value", r.value).put("unit", r.unit)
+                            .put("ref_range", r.referenceRange).put("timestamp", formatDate(r.timestamp))
+                    }))
+                    json.put("symptoms", toJsonArray(symptoms.value.map { r ->
+                        JSONObject().put("symptom", r.symptomName).put("severity", r.severity)
+                            .put("timestamp", formatDate(r.timestamp)).put("notes", r.notes)
+                    }))
+                    json.put("sleep", toJsonArray(sleepRecords.value.map { r ->
+                        JSONObject().put("hours", r.hours).put("timestamp", formatDate(r.timestamp)).put("notes", r.notes)
+                    }))
+                } else {
+                    // Family member / child profile
+                    json.put("profile_type", "family_member")
+                    json.put("name", familyMember.name)
+                    json.put("relationship", familyMember.relationship)
+                    json.put("date_of_birth", familyMember.dateOfBirth)
+                    json.put("blood_type", familyMember.bloodType)
+                    json.put("sex", familyMember.sex)
+                    json.put("height_cm", familyMember.heightCm)
+                    json.put("weight_kg", familyMember.weightKg)
+                    json.put("chronic_conditions", familyMember.chronicConditions)
+                    json.put("allergies", familyMember.allergies)
+                    json.put("emergency_contact_name", familyMember.emergencyContactName)
+                    json.put("emergency_contact_phone", familyMember.emergencyContactPhone)
+                    json.put("notes", familyMember.notes)
+                }
+                json.put("export_date", formatDate(System.currentTimeMillis()))
+                json.put("app", "My Medical Journal")
+
+                val profileLabel = familyMember?.name?.replace(" ", "_") ?: "main"
+                val filename = "medical_export_${profileLabel}_${System.currentTimeMillis()}.json"
+                val file = File(context.cacheDir, filename)
+                file.writeText(json.toString(2))
+
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                shareFile(context, uri, "application/json", "Medical data — ${familyMember?.name ?: "My Profile"}")
+            } catch (e: Exception) {
+                Log.e("Export", "Profile export failed: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    fun shareFileViaWhatsApp(context: Context, familyMember: FamilyMemberProfile?) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val info = if (familyMember == null) _emergencyInfo.value else null
+                val name = familyMember?.name ?: info?.fullName ?: "profile"
+                val json = if (familyMember == null) generateJSON() else {
+                    val obj = JSONObject()
+                    obj.put("name", familyMember.name)
+                    obj.put("relationship", familyMember.relationship)
+                    obj.put("date_of_birth", familyMember.dateOfBirth)
+                    obj.put("blood_type", familyMember.bloodType)
+                    obj.put("sex", familyMember.sex)
+                    obj.put("height_cm", familyMember.heightCm)
+                    obj.put("weight_kg", familyMember.weightKg)
+                    obj.put("chronic_conditions", familyMember.chronicConditions)
+                    obj.put("allergies", familyMember.allergies)
+                    obj.toString(2)
+                }
+                val filename = "whatsapp_share_${name.replace(" ", "_")}.json"
+                val file = File(context.cacheDir, filename)
+                file.writeText(json)
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+
+                withContext(Dispatchers.Main) {
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        setPackage("com.whatsapp")
+                        type = "application/json"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    val resolved = intent.resolveActivity(context.packageManager)
+                    if (resolved != null) {
+                        context.startActivity(intent)
+                    } else {
+                        // WhatsApp not installed — fall back to share sheet
+                        shareFile(context, uri, "application/json", "Medical data — $name")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("Export", "WhatsApp share failed: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    private fun toJsonArray(list: List<JSONObject>): JSONArray {
+        val arr = JSONArray()
+        list.forEach { arr.put(it) }
+        return arr
+    }
+
+    private fun shareFile(context: Context, uri: Uri, mimeType: String, subject: String) {
+        viewModelScope.launch(Dispatchers.Main) {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = mimeType
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, subject)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(intent, "Share via...").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            })
+        }
     }
 
     // --- Weekly AI Health Narrative ---

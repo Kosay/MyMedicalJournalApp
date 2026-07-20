@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [ main, master ]
   push:
-    branches: [ main, master ]
+    branches: [ main, master, 'claude/**' ]
   workflow_dispatch:
 
 jobs:
@@ -26,11 +26,14 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Grant execute permission for gradlew
+      - name: Install Android SDK platform 36
+        run: sdkmanager "platforms;android-36" "build-tools;35.0.0"
+
+      - name: Install Gradle 8.14.3
         run: |
-          if [ -f gradlew ]; then
-            chmod +x gradlew
-          fi
+          wget -q https://services.gradle.org/distributions/gradle-8.14.3-bin.zip -O /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /opt/gradle-install
+          echo "/opt/gradle-install/gradle-8.14.3/bin" >> $GITHUB_PATH
 
       - name: Decode debug keystore
         run: |
@@ -41,13 +44,22 @@ jobs:
             echo "No debug.keystore.base64 found, using default debug keystore"
           fi
 
-      - name: Build signed debug APK
+      - name: Verify Gradle version
+        run: gradle --version
+
+      - name: Probe available KSP versions
         run: |
-          if [ -f gradlew ]; then
-            ./gradlew assembleDebug --no-daemon
-          else
-            gradle assembleDebug --no-daemon
-          fi
+          echo "=== KSP versions on Gradle Plugin Portal ==="
+          curl -sL "https://plugins.gradle.org/m2/com/google/devtools/ksp/com.google.devtools.ksp.gradle.plugin/maven-metadata.xml" \
+            | grep -oP '(?<=<version>)[^<]+' | sort -V | tail -20 \
+            || echo "Gradle Plugin Portal fetch failed"
+          echo "=== KSP versions on Google Maven ==="
+          curl -sL "https://dl.google.com/dl/android/maven2/com/google/devtools/ksp/symbol-processing-gradle-plugin/maven-metadata.xml" \
+            | grep -oP '(?<=<version>)[^<]+' | sort -V | tail -20 \
+            || echo "Google Maven fetch failed"
+
+      - name: Build signed debug APK
+        run: gradle assembleDebug --no-daemon
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
@@ -78,11 +90,14 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Grant execute permission for gradlew
+      - name: Install Android SDK platform 36
+        run: sdkmanager "platforms;android-36" "build-tools;35.0.0"
+
+      - name: Install Gradle 8.14.3
         run: |
-          if [ -f gradlew ]; then
-            chmod +x gradlew
-          fi
+          wget -q https://services.gradle.org/distributions/gradle-8.14.3-bin.zip -O /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /opt/gradle-install
+          echo "/opt/gradle-install/gradle-8.14.3/bin" >> $GITHUB_PATH
 
       - name: Decode release keystore
         env:
@@ -96,17 +111,15 @@ jobs:
             exit 1
           fi
 
+      - name: Verify Gradle version
+        run: gradle --version
+
       - name: Build signed release APK
         env:
           KEYSTORE_PATH: ${{ github.workspace }}/my-upload-key.jks
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          if [ -f gradlew ]; then
-            ./gradlew assembleRelease --no-daemon
-          else
-            gradle assembleRelease --no-daemon
-          fi
+        run: gradle assembleRelease --no-daemon
 
       - name: Upload release APK
         uses: actions/upload-artifact@v4
