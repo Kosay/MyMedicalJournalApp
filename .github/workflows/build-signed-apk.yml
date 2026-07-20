@@ -47,6 +47,17 @@ jobs:
       - name: Verify Gradle version
         run: gradle --version
 
+      - name: Probe available KSP versions
+        run: |
+          echo "=== KSP versions on Gradle Plugin Portal ==="
+          curl -sL "https://plugins.gradle.org/m2/com/google/devtools/ksp/com.google.devtools.ksp.gradle.plugin/maven-metadata.xml" \
+            | grep -oP '(?<=<version>)[^<]+' | sort -V | tail -20 \
+            || echo "Gradle Plugin Portal fetch failed"
+          echo "=== KSP versions on Google Maven ==="
+          curl -sL "https://dl.google.com/dl/android/maven2/com/google/devtools/ksp/symbol-processing-gradle-plugin/maven-metadata.xml" \
+            | grep -oP '(?<=<version>)[^<]+' | sort -V | tail -20 \
+            || echo "Google Maven fetch failed"
+
       - name: Build signed debug APK
         run: gradle assembleDebug --no-daemon
 
