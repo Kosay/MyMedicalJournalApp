@@ -128,14 +128,15 @@ jobs:
           path: app/build/outputs/apk/release/*.apk
           retention-days: 14
 
-  # Convenience job: comment on the PR with a link to the APK artifact
+  # Convenience job: comment on the PR with direct download links to the APK artifacts
   notify-pr:
-    name: Comment APK link on PR
+    name: Comment APK links on PR
     runs-on: ubuntu-latest
-    needs: build-debug
-    if: github.event_name == 'pull_request'
+    needs: [build-debug, build-release]
+    if: always() && github.event_name == 'pull_request' && needs.build-debug.result == 'success'
     permissions:
       pull-requests: write
+      actions: read
 
     steps:
       - name: Comment on PR
@@ -143,19 +144,45 @@ jobs:
         with:
           script: |
             const run_url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const body = [
-              '## Signed Debug APK Ready',
-              '',
-              `The signed debug APK has been built successfully for this PR.`,
-              '',
-              `**Download:** Go to the [Actions run](${run_url}) and download the \`debug-apk-${context.payload.pull_request.number}\` artifact.`,
-              '',
-              '_Artifact expires after 7 days._'
-            ].join('\n');
+            const releaseResult = '${{ needs.build-release.result }}';
+
+            // Fetch this run's artifacts to build direct download links
+            const { data } = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId
+            });
+            const linkFor = (prefix) => {
+              const a = data.artifacts.find(a => a.name.startsWith(prefix));
+              return a ? `${run_url}/artifacts/${a.id}` : null;
+            };
+
+            const debugLink = linkFor('debug-apk-');
+            const releaseLink = linkFor('release-apk-');
+
+            const lines = ['## APK Builds Ready', ''];
+
+            if (debugLink) {
+              lines.push(`**Debug APK (debug-signed):** [Download](${debugLink})`);
+            } else {
+              lines.push(`**Debug APK:** built — download from the [Actions run](${run_url}).`);
+            }
+
+            if (releaseResult === 'success' && releaseLink) {
+              lines.push(`**Release APK (release-signed):** [Download](${releaseLink})`);
+            } else if (releaseResult === 'success') {
+              lines.push(`**Release APK:** built — download from the [Actions run](${run_url}).`);
+            } else if (releaseResult === 'skipped') {
+              lines.push('**Release APK:** skipped — to enable it, add the `KEYSTORE_BASE64`, `STORE_PASSWORD`, and `KEY_PASSWORD` repository secrets and set the `HAS_RELEASE_KEYSTORE` repository variable to `true` (Settings → Secrets and variables → Actions).');
+            } else {
+              lines.push(`**Release APK:** build failed — see the [Actions run](${run_url}) logs.`);
+            }
+
+            lines.push('', '_Download links require being signed in to GitHub with access to this repository. Artifacts expire after 7–14 days._');
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.payload.pull_request.number,
-              body
+              body: lines.join('\n')
             });
