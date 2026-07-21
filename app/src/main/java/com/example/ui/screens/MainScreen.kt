@@ -3458,8 +3458,6 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
         )
     }
 
-    fun trans(key: String): String = LocalStrings.get(key, lang)
-
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
