@@ -39,7 +39,6 @@ import androidx.core.app.NotificationCompat
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import com.example.MedicalJournalApp
 import com.example.workers.HealthAlertsWorker
 import com.example.workers.MedicationReminderWorker
 import java.util.concurrent.TimeUnit
@@ -652,7 +651,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
             .putBoolean("onboarding_completed", true)
             .putFloat("heightCm", heightCm)
             .apply()
-        _emergencyInfo.value = info
+        // emergencyInfo state updates automatically via Room's Flow
     }
 
     // --- Family Members ---
@@ -715,7 +714,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                 val json = JSONObject()
                 if (familyMember == null) {
                     // Main user profile
-                    val info = _emergencyInfo.value
+                    val info = emergencyInfo.value
                     json.put("profile_type", "main_user")
                     json.put("name", info?.fullName ?: "")
                     json.put("blood_type", info?.bloodType ?: "")
@@ -785,7 +784,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
     fun shareFileViaWhatsApp(context: Context, familyMember: FamilyMemberProfile?) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val info = if (familyMember == null) _emergencyInfo.value else null
+                val info = if (familyMember == null) emergencyInfo.value else null
                 val name = familyMember?.name ?: info?.fullName ?: "profile"
                 val json = if (familyMember == null) generateJSON() else {
                     val obj = JSONObject()
