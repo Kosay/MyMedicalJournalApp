@@ -31,9 +31,9 @@ jobs:
 
       - name: Install Gradle 8.14.3
         run: |
-          wget -q https://services.gradle.org/distributions/gradle-8.14.3-bin.zip -O /tmp/gradle.zip
+          wget -q https://services.gradle.org/distributions/gradle-9.3.1-bin.zip -O /tmp/gradle.zip
           unzip -q /tmp/gradle.zip -d /opt/gradle-install
-          echo "/opt/gradle-install/gradle-8.14.3/bin" >> $GITHUB_PATH
+          echo "/opt/gradle-install/gradle-9.3.1/bin" >> $GITHUB_PATH
 
       - name: Decode debug keystore
         run: |
@@ -95,9 +95,9 @@ jobs:
 
       - name: Install Gradle 8.14.3
         run: |
-          wget -q https://services.gradle.org/distributions/gradle-8.14.3-bin.zip -O /tmp/gradle.zip
+          wget -q https://services.gradle.org/distributions/gradle-9.3.1-bin.zip -O /tmp/gradle.zip
           unzip -q /tmp/gradle.zip -d /opt/gradle-install
-          echo "/opt/gradle-install/gradle-8.14.3/bin" >> $GITHUB_PATH
+          echo "/opt/gradle-install/gradle-9.3.1/bin" >> $GITHUB_PATH
 
       - name: Decode release keystore
         env:

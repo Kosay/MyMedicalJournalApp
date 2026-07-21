@@ -1660,9 +1660,6 @@ fun LabResultDetailView(viewModel: HealthViewModel, lang: String) {
                                                 )
                                             }
                                         }
-                                        if (record.notes.isNotEmpty()) {
-                                            Text(record.notes, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
-                                        }
                                         Text(
                                             viewModel.formatDate(record.timestamp),
                                             fontSize = 10.sp,
@@ -3407,6 +3404,7 @@ fun AIHealthAssistantView(viewModel: HealthViewModel, lang: String) {
 // ==========================================
 @Composable
 fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
+    fun trans(key: String) = LocalStrings.get(key, lang)
     val context = LocalContext.current
     val currentLang by viewModel.language.collectAsState()
     val themeMode by viewModel.theme.collectAsState()
