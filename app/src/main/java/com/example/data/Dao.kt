@@ -145,6 +145,16 @@ interface HealthDao {
     @Delete
     suspend fun deleteHeight(record: HeightRecord)
 
+    // --- Period tracking ---
+    @Query("SELECT * FROM period_records ORDER BY startTimestamp DESC")
+    fun getAllPeriods(): Flow<List<PeriodRecord>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPeriod(record: PeriodRecord)
+
+    @Delete
+    suspend fun deletePeriod(record: PeriodRecord)
+
     // --- Appointments ---
     @Query("SELECT * FROM appointments ORDER BY dateTimestamp ASC")
     fun getAllAppointments(): Flow<List<AppointmentRecord>>

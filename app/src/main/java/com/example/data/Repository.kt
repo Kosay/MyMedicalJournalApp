@@ -73,6 +73,11 @@ class HealthRepository(private val dao: HealthDao) {
     suspend fun insertHeight(record: HeightRecord) = dao.insertHeight(record)
     suspend fun deleteHeight(record: HeightRecord) = dao.deleteHeight(record)
 
+    // --- Period tracking ---
+    val allPeriods: Flow<List<PeriodRecord>> = dao.getAllPeriods()
+    suspend fun insertPeriod(record: PeriodRecord) = dao.insertPeriod(record)
+    suspend fun deletePeriod(record: PeriodRecord) = dao.deletePeriod(record)
+
     // --- Appointments ---
     val allAppointments: Flow<List<AppointmentRecord>> = dao.getAllAppointments()
     suspend fun insertAppointment(record: AppointmentRecord) = dao.insertAppointment(record)
