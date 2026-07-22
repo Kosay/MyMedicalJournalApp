@@ -68,6 +68,11 @@ class HealthRepository(private val dao: HealthDao) {
     suspend fun insertFamilyMember(profile: FamilyMemberProfile) = dao.insertFamilyMember(profile)
     suspend fun deleteFamilyMember(profile: FamilyMemberProfile) = dao.deleteFamilyMember(profile)
 
+    // --- Height (child growth) ---
+    val allHeights: Flow<List<HeightRecord>> = dao.getAllHeights()
+    suspend fun insertHeight(record: HeightRecord) = dao.insertHeight(record)
+    suspend fun deleteHeight(record: HeightRecord) = dao.deleteHeight(record)
+
     // --- Appointments ---
     val allAppointments: Flow<List<AppointmentRecord>> = dao.getAllAppointments()
     suspend fun insertAppointment(record: AppointmentRecord) = dao.insertAppointment(record)

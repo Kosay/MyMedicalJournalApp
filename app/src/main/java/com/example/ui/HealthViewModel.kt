@@ -213,42 +213,61 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         _searchQuery.value = query
     }
 
-    // --- Flows from DB ---
-    val bloodPressureRecords: StateFlow<List<BloodPressureRecord>> = repository.allBloodPressure
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    // --- Active profile (0 = main user; else FamilyMemberProfile.id) ---
+    private val _activeProfileId = MutableStateFlow(0)
+    val activeProfileId: StateFlow<Int> = _activeProfileId.asStateFlow()
 
-    val weightRecords: StateFlow<List<WeightRecord>> = repository.allWeight
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private val _activeProfileName = MutableStateFlow("")
+    val activeProfileName: StateFlow<String> = _activeProfileName.asStateFlow()
 
-    val medications: StateFlow<List<MedicationRecord>> = repository.allMedications
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    fun setActiveProfile(member: FamilyMemberProfile?) {
+        _activeProfileId.value = member?.id ?: 0
+        _activeProfileName.value = member?.name ?: ""
+    }
 
-    val symptoms: StateFlow<List<SymptomRecord>> = repository.allSymptoms
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private fun <T> Flow<List<T>>.forActiveProfile(profileOf: (T) -> Int): StateFlow<List<T>> =
+        combine(this, _activeProfileId) { list, pid -> list.filter { profileOf(it) == pid } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val sleepRecords: StateFlow<List<SleepRecord>> = repository.allSleep
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    // --- Flows from DB (filtered to the active profile) ---
+    val bloodPressureRecords: StateFlow<List<BloodPressureRecord>> =
+        repository.allBloodPressure.forActiveProfile { it.profileId }
 
-    val labResults: StateFlow<List<LabResultRecord>> = repository.allLabResults
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val weightRecords: StateFlow<List<WeightRecord>> =
+        repository.allWeight.forActiveProfile { it.profileId }
 
-    val lifestyleRecords: StateFlow<List<LifestyleRecord>> = repository.allLifestyle
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val medications: StateFlow<List<MedicationRecord>> =
+        repository.allMedications.forActiveProfile { it.profileId }
 
-    val attachments: StateFlow<List<AttachmentRecord>> = repository.allAttachments
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val symptoms: StateFlow<List<SymptomRecord>> =
+        repository.allSymptoms.forActiveProfile { it.profileId }
+
+    val sleepRecords: StateFlow<List<SleepRecord>> =
+        repository.allSleep.forActiveProfile { it.profileId }
+
+    val labResults: StateFlow<List<LabResultRecord>> =
+        repository.allLabResults.forActiveProfile { it.profileId }
+
+    val lifestyleRecords: StateFlow<List<LifestyleRecord>> =
+        repository.allLifestyle.forActiveProfile { it.profileId }
+
+    val attachments: StateFlow<List<AttachmentRecord>> =
+        repository.allAttachments.forActiveProfile { it.profileId }
 
     val emergencyInfo: StateFlow<EmergencyInfo?> = repository.emergencyInfo
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    val bloodSugarRecords: StateFlow<List<BloodSugarRecord>> = repository.allBloodSugar
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val bloodSugarRecords: StateFlow<List<BloodSugarRecord>> =
+        repository.allBloodSugar.forActiveProfile { it.profileId }
 
-    val moodRecords: StateFlow<List<MoodRecord>> = repository.allMoods
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val moodRecords: StateFlow<List<MoodRecord>> =
+        repository.allMoods.forActiveProfile { it.profileId }
 
-    val medicationDoses: StateFlow<List<MedicationDoseRecord>> = repository.allMedicationDoses
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val medicationDoses: StateFlow<List<MedicationDoseRecord>> =
+        repository.allMedicationDoses.forActiveProfile { it.profileId }
+
+    val heightRecords: StateFlow<List<HeightRecord>> =
+        repository.allHeights.forActiveProfile { it.profileId }
 
     val familyMembers: StateFlow<List<FamilyMemberProfile>> = repository.allFamilyMembers
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -355,6 +374,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertBloodSugar(
                 BloodSugarRecord(
+                    profileId = _activeProfileId.value,
                     value = value,
                     unit = unit,
                     category = category,
@@ -383,6 +403,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertBloodPressure(
                 BloodPressureRecord(
+                    profileId = _activeProfileId.value,
                     systolic = systolic,
                     diastolic = diastolic,
                     heartRate = heartRate,
@@ -411,6 +432,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertWeight(
                 WeightRecord(
+                    profileId = _activeProfileId.value,
                     weightKg = weightKg,
                     timestamp = timestamp,
                     notes = notes
@@ -435,6 +457,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertMedication(
                 MedicationRecord(
+                    profileId = _activeProfileId.value,
                     name = name,
                     dosage = dosage,
                     frequency = frequency,
@@ -460,6 +483,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertSymptom(
                 SymptomRecord(
+                    profileId = _activeProfileId.value,
                     symptomName = symptomName,
                     severity = severity,
                     timestamp = timestamp,
@@ -485,6 +509,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertSleep(
                 SleepRecord(
+                    profileId = _activeProfileId.value,
                     hours = hours,
                     timestamp = timestamp,
                     notes = notes
@@ -509,6 +534,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertLabResult(
                 LabResultRecord(
+                    profileId = _activeProfileId.value,
                     testName = testName,
                     value = value,
                     unit = unit,
@@ -535,6 +561,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertLifestyle(
                 LifestyleRecord(
+                    profileId = _activeProfileId.value,
                     type = "water",
                     amount = 250f,
                     timestamp = System.currentTimeMillis()
@@ -547,6 +574,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertLifestyle(
                 LifestyleRecord(
+                    profileId = _activeProfileId.value,
                     type = type,
                     amount = amount,
                     timestamp = System.currentTimeMillis()
@@ -565,6 +593,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertAttachment(
                 AttachmentRecord(
+                    profileId = _activeProfileId.value,
                     title = title,
                     fileUri = fileUri,
                     notes = notes,
@@ -611,7 +640,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
     // --- Mood ---
     fun addMood(score: Int, notes: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            repository.insertMood(MoodRecord(score = score, notes = notes))
+            repository.insertMood(MoodRecord(score = score, notes = notes, profileId = _activeProfileId.value))
         }
     }
 
@@ -624,6 +653,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertMedicationDose(
                 MedicationDoseRecord(
+                    profileId = _activeProfileId.value,
                     medicationId = medication.id,
                     medicationName = medication.name,
                     taken = taken,
@@ -709,6 +739,43 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch(Dispatchers.IO) {
             repository.updateAppointment(record.copy(isCompleted = !record.isCompleted))
         }
+    }
+
+    // --- Height (child growth tracking) ---
+    fun addHeight(heightCm: Float, notes: String, timestamp: Long = System.currentTimeMillis()) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertHeight(
+                HeightRecord(
+                    profileId = _activeProfileId.value,
+                    heightCm = heightCm,
+                    timestamp = timestamp,
+                    notes = notes
+                )
+            )
+        }
+    }
+
+    fun updateHeight(record: HeightRecord) {
+        viewModelScope.launch(Dispatchers.IO) { repository.insertHeight(record) }
+    }
+
+    fun deleteHeight(record: HeightRecord) {
+        viewModelScope.launch(Dispatchers.IO) { repository.deleteHeight(record) }
+    }
+
+    /** Age in years from a DD/MM/YYYY date-of-birth string, or null if unparseable. */
+    fun ageYears(dateOfBirth: String): Int? {
+        val parts = dateOfBirth.split("/", "-", ".")
+        if (parts.size != 3) return null
+        val day = parts[0].toIntOrNull() ?: return null
+        val month = parts[1].toIntOrNull() ?: return null
+        val year = parts[2].toIntOrNull() ?: return null
+        if (year < 1900) return null
+        val dob = Calendar.getInstance().apply { set(year, month - 1, day) }
+        val now = Calendar.getInstance()
+        var age = now.get(Calendar.YEAR) - dob.get(Calendar.YEAR)
+        if (now.get(Calendar.DAY_OF_YEAR) < dob.get(Calendar.DAY_OF_YEAR)) age--
+        return if (age in 0..150) age else null
     }
 
     // --- Per-profile export (local file share — no internet) ---
@@ -825,6 +892,194 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                 }
             } catch (e: Exception) {
                 Log.e("Export", "WhatsApp share failed: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    // --- Full ZIP export: data.json + attachment files. profileFilter null = all profiles ---
+    fun exportFullZip(context: Context, profileFilter: Int?) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val root = generateFullJSON(profileFilter)
+                val attachmentList = repository.allAttachments.first()
+                    .filter { profileFilter == null || it.profileId == profileFilter }
+
+                val label = when (profileFilter) {
+                    null -> "all"
+                    0 -> "main"
+                    else -> repository.allFamilyMembers.first()
+                        .firstOrNull { it.id == profileFilter }?.name?.replace(" ", "_") ?: "profile$profileFilter"
+                }
+                val zipFile = File(context.cacheDir, "medical_backup_${label}_${System.currentTimeMillis()}.zip")
+
+                ZipOutputStream(zipFile.outputStream().buffered()).use { zos ->
+                    zos.putNextEntry(ZipEntry("data.json"))
+                    zos.write(root.toString(2).toByteArray())
+                    zos.closeEntry()
+
+                    attachmentList.forEach { att ->
+                        try {
+                            context.contentResolver.openInputStream(Uri.parse(att.fileUri))?.use { input ->
+                                val ext = att.fileUri.substringAfterLast('.', "").take(5)
+                                val entryName = "files/att_${att.id}" + if (ext.isNotEmpty()) ".$ext" else ""
+                                zos.putNextEntry(ZipEntry(entryName))
+                                input.copyTo(zos)
+                                zos.closeEntry()
+                            }
+                        } catch (e: Exception) {
+                            Log.w("Export", "Skipping unreadable attachment ${att.id}: ${e.localizedMessage}")
+                        }
+                    }
+                }
+
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", zipFile)
+                shareFile(context, uri, "application/zip", "Medical backup — $label")
+            } catch (e: Exception) {
+                Log.e("Export", "ZIP export failed: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    /** Full snapshot of ALL tables from the DB (not the active-profile-filtered flows). */
+    private suspend fun generateFullJSON(profileFilter: Int?): JSONObject {
+        fun <T> List<T>.byProfile(profileOf: (T) -> Int): List<T> =
+            if (profileFilter == null) this else filter { profileOf(it) == profileFilter }
+
+        val root = JSONObject()
+        root.put("blood_pressure", toJsonArray(repository.allBloodPressure.first().byProfile { it.profileId }.map {
+            JSONObject().put("profileId", it.profileId).put("systolic", it.systolic).put("diastolic", it.diastolic)
+                .put("heartRate", it.heartRate).put("timestamp", it.timestamp).put("notes", it.notes)
+        }))
+        root.put("weight", toJsonArray(repository.allWeight.first().byProfile { it.profileId }.map {
+            JSONObject().put("profileId", it.profileId).put("weightKg", it.weightKg)
+                .put("timestamp", it.timestamp).put("notes", it.notes)
+        }))
+        root.put("medications", toJsonArray(repository.allMedications.first().byProfile { it.profileId }.map {
+            JSONObject().put("profileId", it.profileId).put("name", it.name).put("dosage", it.dosage)
+                .put("frequency", it.frequency).put("isActive", it.isActive)
+        }))
+        root.put("symptoms", toJsonArray(repository.allSymptoms.first().byProfile { it.profileId }.map {
+            JSONObject().put("profileId", it.profileId).put("symptomName", it.symptomName)
+                .put("severity", it.severity).put("timestamp", it.timestamp).put("notes", it.notes)
+        }))
+        root.put("sleep", toJsonArray(repository.allSleep.first().byProfile { it.profileId }.map {
+            JSONObject().put("profileId", it.profileId).put("hours", it.hours)
+                .put("timestamp", it.timestamp).put("notes", it.notes)
+        }))
+        root.put("blood_sugar", toJsonArray(repository.allBloodSugar.first().byProfile { it.profileId }.map {
+            JSONObject().put("profileId", it.profileId).put("value", it.value).put("unit", it.unit)
+                .put("category", it.category).put("timestamp", it.timestamp).put("notes", it.notes)
+        }))
+        root.put("lab_results", toJsonArray(repository.allLabResults.first().byProfile { it.profileId }.map {
+            JSONObject().put("profileId", it.profileId).put("testName", it.testName).put("value", it.value)
+                .put("unit", it.unit).put("referenceRange", it.referenceRange).put("timestamp", it.timestamp)
+        }))
+        root.put("mood_records", toJsonArray(repository.allMoods.first().byProfile { it.profileId }.map {
+            JSONObject().put("profileId", it.profileId).put("score", it.score)
+                .put("notes", it.notes).put("timestamp", it.timestamp)
+        }))
+        root.put("height_records", toJsonArray(repository.allHeights.first().byProfile { it.profileId }.map {
+            JSONObject().put("profileId", it.profileId).put("heightCm", it.heightCm)
+                .put("timestamp", it.timestamp).put("notes", it.notes)
+        }))
+        root.put("attachments", toJsonArray(repository.allAttachments.first().byProfile { it.profileId }.map {
+            val ext = it.fileUri.substringAfterLast('.', "").take(5)
+            JSONObject().put("profileId", it.profileId).put("title", it.title).put("notes", it.notes)
+                .put("timestamp", it.timestamp)
+                .put("zipName", "files/att_${it.id}" + if (ext.isNotEmpty()) ".$ext" else "")
+        }))
+        // Family profiles always included so profileId references resolve after import
+        root.put("family_members", toJsonArray(repository.allFamilyMembers.first().map {
+            JSONObject().put("id", it.id).put("name", it.name).put("relationship", it.relationship)
+                .put("dateOfBirth", it.dateOfBirth).put("bloodType", it.bloodType).put("notes", it.notes)
+                .put("sex", it.sex).put("chronicConditions", it.chronicConditions).put("allergies", it.allergies)
+                .put("emergencyContactName", it.emergencyContactName).put("emergencyContactPhone", it.emergencyContactPhone)
+                .put("heightCm", it.heightCm).put("weightKg", it.weightKg)
+        }))
+        if (profileFilter == null || profileFilter == 0) {
+            repository.emergencyInfo.first()?.let { info ->
+                root.put("emergency_info", JSONObject().apply {
+                    put("fullName", info.fullName); put("bloodType", info.bloodType)
+                    put("chronicConditions", info.chronicConditions); put("allergies", info.allergies)
+                    put("contactName", info.contactName); put("contactPhone", info.contactPhone)
+                    put("additionalNotes", info.additionalNotes); put("sex", info.sex)
+                    put("numberOfChildren", info.numberOfChildren)
+                })
+            }
+        }
+        root.put("export_date", formatDate(System.currentTimeMillis()))
+        root.put("format", "zip_full_v1")
+        return root
+    }
+
+    // --- ZIP import: restores data.json and extracts attachment files ---
+    fun importZipBackup(context: Context, uri: Uri, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                var dataJson: String? = null
+                val extractedFiles = mutableMapOf<String, File>()
+
+                withContext(Dispatchers.IO) {
+                    val attachmentsDir = File(context.filesDir, "attachments").apply { mkdirs() }
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        java.util.zip.ZipInputStream(input.buffered()).use { zis ->
+                            var entry = zis.nextEntry
+                            while (entry != null) {
+                                when {
+                                    entry.name == "data.json" ->
+                                        dataJson = zis.readBytes().toString(Charsets.UTF_8)
+                                    entry.name.startsWith("files/") && !entry.isDirectory -> {
+                                        // Guard against zip-slip: use base name only
+                                        val safeName = File(entry.name).name
+                                        val out = File(attachmentsDir, "${System.currentTimeMillis()}_$safeName")
+                                        out.outputStream().use { zis.copyTo(it) }
+                                        extractedFiles[entry.name] = out
+                                    }
+                                }
+                                zis.closeEntry()
+                                entry = zis.nextEntry
+                            }
+                        }
+                    }
+                }
+
+                val json = dataJson
+                if (json == null) {
+                    onResult(false, "data.json not found in ZIP")
+                    return@launch
+                }
+
+                val ok = restoreFromJSON(json)
+                if (!ok) {
+                    onResult(false, "Could not parse backup data")
+                    return@launch
+                }
+
+                // Attachments: re-link extracted files
+                withContext(Dispatchers.IO) {
+                    val root = JSONObject(json)
+                    root.optJSONArray("attachments")?.let { arr ->
+                        for (i in 0 until arr.length()) {
+                            val obj = arr.getJSONObject(i)
+                            val zipName = obj.optString("zipName")
+                            val file = extractedFiles[zipName] ?: continue
+                            repository.insertAttachment(
+                                AttachmentRecord(
+                                    profileId = obj.optInt("profileId", 0),
+                                    title = obj.optString("title"),
+                                    fileUri = Uri.fromFile(file).toString(),
+                                    notes = obj.optString("notes"),
+                                    timestamp = obj.optLong("timestamp", System.currentTimeMillis())
+                                )
+                            )
+                        }
+                    }
+                }
+
+                onResult(true, "Backup restored (${extractedFiles.size} files)")
+            } catch (e: Exception) {
+                Log.e("Restore", "ZIP import failed", e)
+                onResult(false, e.localizedMessage ?: "ZIP import error")
             }
         }
     }
@@ -1706,6 +1961,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         val bpArr = JSONArray()
         bloodPressureRecords.value.forEach {
             bpArr.put(JSONObject().apply {
+                put("profileId", it.profileId)
                 put("systolic", it.systolic)
                 put("diastolic", it.diastolic)
                 put("heartRate", it.heartRate)
@@ -1718,6 +1974,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         val wArr = JSONArray()
         weightRecords.value.forEach {
             wArr.put(JSONObject().apply {
+                put("profileId", it.profileId)
                 put("weightKg", it.weightKg)
                 put("timestamp", it.timestamp)
                 put("notes", it.notes)
@@ -1728,6 +1985,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         val medArr = JSONArray()
         medications.value.forEach {
             medArr.put(JSONObject().apply {
+                put("profileId", it.profileId)
                 put("name", it.name)
                 put("dosage", it.dosage)
                 put("frequency", it.frequency)
@@ -1739,6 +1997,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         val sArr = JSONArray()
         symptoms.value.forEach {
             sArr.put(JSONObject().apply {
+                put("profileId", it.profileId)
                 put("symptomName", it.symptomName)
                 put("severity", it.severity)
                 put("timestamp", it.timestamp)
@@ -1750,6 +2009,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         val slArr = JSONArray()
         sleepRecords.value.forEach {
             slArr.put(JSONObject().apply {
+                put("profileId", it.profileId)
                 put("hours", it.hours)
                 put("timestamp", it.timestamp)
                 put("notes", it.notes)
@@ -1760,6 +2020,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         val sugarArr = JSONArray()
         bloodSugarRecords.value.forEach {
             sugarArr.put(JSONObject().apply {
+                put("profileId", it.profileId)
                 put("value", it.value)
                 put("unit", it.unit)
                 put("category", it.category)
@@ -1772,6 +2033,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         val labArr = JSONArray()
         labResults.value.forEach {
             labArr.put(JSONObject().apply {
+                put("profileId", it.profileId)
                 put("testName", it.testName)
                 put("value", it.value)
                 put("unit", it.unit)
@@ -1798,6 +2060,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         val moodArr = JSONArray()
         moodRecords.value.forEach {
             moodArr.put(JSONObject().apply {
+                put("profileId", it.profileId)
                 put("score", it.score)
                 put("notes", it.notes)
                 put("timestamp", it.timestamp)
@@ -1808,14 +2071,33 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         val familyArr = JSONArray()
         familyMembers.value.forEach {
             familyArr.put(JSONObject().apply {
+                put("id", it.id)
                 put("name", it.name)
                 put("relationship", it.relationship)
                 put("dateOfBirth", it.dateOfBirth)
                 put("bloodType", it.bloodType)
                 put("notes", it.notes)
+                put("sex", it.sex)
+                put("chronicConditions", it.chronicConditions)
+                put("allergies", it.allergies)
+                put("emergencyContactName", it.emergencyContactName)
+                put("emergencyContactPhone", it.emergencyContactPhone)
+                put("heightCm", it.heightCm)
+                put("weightKg", it.weightKg)
             })
         }
         root.put("family_members", familyArr)
+
+        val heightArr = JSONArray()
+        heightRecords.value.forEach {
+            heightArr.put(JSONObject().apply {
+                put("profileId", it.profileId)
+                put("heightCm", it.heightCm)
+                put("timestamp", it.timestamp)
+                put("notes", it.notes)
+            })
+        }
+        root.put("height_records", heightArr)
 
         return root.toString(2)
     }
@@ -2359,6 +2641,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                     repository.insertBloodPressure(
                         BloodPressureRecord(
                             id = obj.optInt("id", 0),
+                            profileId = obj.optInt("profileId", 0),
                             systolic = obj.optInt("systolic"),
                             diastolic = obj.optInt("diastolic"),
                             heartRate = obj.optInt("heartRate"),
@@ -2376,6 +2659,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                     repository.insertWeight(
                         WeightRecord(
                             id = obj.optInt("id", 0),
+                            profileId = obj.optInt("profileId", 0),
                             weightKg = obj.optDouble("weightKg").toFloat(),
                             timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
                             notes = obj.optString("notes")
@@ -2391,6 +2675,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                     repository.insertMedication(
                         MedicationRecord(
                             id = obj.optInt("id", 0),
+                            profileId = obj.optInt("profileId", 0),
                             name = obj.optString("name"),
                             dosage = obj.optString("dosage"),
                             frequency = obj.optString("frequency"),
@@ -2407,6 +2692,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                     repository.insertSymptom(
                         SymptomRecord(
                             id = obj.optInt("id", 0),
+                            profileId = obj.optInt("profileId", 0),
                             symptomName = obj.optString("symptomName"),
                             severity = obj.optString("severity"),
                             timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
@@ -2423,6 +2709,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                     repository.insertSleep(
                         SleepRecord(
                             id = obj.optInt("id", 0),
+                            profileId = obj.optInt("profileId", 0),
                             hours = obj.optDouble("hours").toFloat(),
                             timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
                             notes = obj.optString("notes")
@@ -2438,6 +2725,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                     repository.insertBloodSugar(
                         BloodSugarRecord(
                             id = obj.optInt("id", 0),
+                            profileId = obj.optInt("profileId", 0),
                             value = obj.optDouble("value").toFloat(),
                             unit = obj.optString("unit", "mg/dL"),
                             category = obj.optString("category", "Fasting"),
@@ -2455,6 +2743,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                     repository.insertLabResult(
                         LabResultRecord(
                             id = obj.optInt("id", 0),
+                            profileId = obj.optInt("profileId", 0),
                             testName = obj.optString("testName"),
                             value = obj.optDouble("value").toFloat(),
                             unit = obj.optString("unit"),
@@ -2489,6 +2778,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                     val obj = arr.getJSONObject(i)
                     repository.insertMood(
                         MoodRecord(
+                            profileId = obj.optInt("profileId", 0),
                             score = obj.optInt("score", 3),
                             notes = obj.optString("notes"),
                             timestamp = obj.optLong("timestamp", System.currentTimeMillis())
@@ -2503,10 +2793,34 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                     val obj = arr.getJSONObject(i)
                     repository.insertFamilyMember(
                         FamilyMemberProfile(
+                            id = obj.optInt("id", 0),
                             name = obj.optString("name"),
                             relationship = obj.optString("relationship"),
                             dateOfBirth = obj.optString("dateOfBirth"),
                             bloodType = obj.optString("bloodType"),
+                            notes = obj.optString("notes"),
+                            sex = obj.optString("sex"),
+                            chronicConditions = obj.optString("chronicConditions"),
+                            allergies = obj.optString("allergies"),
+                            emergencyContactName = obj.optString("emergencyContactName"),
+                            emergencyContactPhone = obj.optString("emergencyContactPhone"),
+                            heightCm = obj.optDouble("heightCm", 0.0).toFloat(),
+                            weightKg = obj.optDouble("weightKg", 0.0).toFloat()
+                        )
+                    )
+                }
+            }
+
+            // 11. Height records (child growth)
+            root.optJSONArray("height_records")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    repository.insertHeight(
+                        HeightRecord(
+                            id = obj.optInt("id", 0),
+                            profileId = obj.optInt("profileId", 0),
+                            heightCm = obj.optDouble("heightCm").toFloat(),
+                            timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
                             notes = obj.optString("notes")
                         )
                     )

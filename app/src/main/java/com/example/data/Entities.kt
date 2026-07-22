@@ -10,7 +10,8 @@ data class BloodPressureRecord(
     val diastolic: Int,
     val heartRate: Int,
     val timestamp: Long,
-    val notes: String = ""
+    val notes: String = "",
+    val profileId: Int = 0
 )
 
 @Entity(tableName = "weight_records")
@@ -18,7 +19,8 @@ data class WeightRecord(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val weightKg: Float,
     val timestamp: Long,
-    val notes: String = ""
+    val notes: String = "",
+    val profileId: Int = 0
 )
 
 @Entity(tableName = "medications")
@@ -28,7 +30,8 @@ data class MedicationRecord(
     val dosage: String,
     val frequency: String,
     val isActive: Boolean = true,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val profileId: Int = 0
 )
 
 @Entity(tableName = "symptoms")
@@ -37,7 +40,8 @@ data class SymptomRecord(
     val symptomName: String,
     val severity: String, // e.g. Mild, Moderate, Severe
     val timestamp: Long,
-    val notes: String = ""
+    val notes: String = "",
+    val profileId: Int = 0
 )
 
 @Entity(tableName = "sleep_records")
@@ -45,7 +49,8 @@ data class SleepRecord(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val hours: Float,
     val timestamp: Long,
-    val notes: String = ""
+    val notes: String = "",
+    val profileId: Int = 0
 )
 
 @Entity(tableName = "lab_results")
@@ -55,7 +60,8 @@ data class LabResultRecord(
     val value: Float,
     val unit: String, // e.g. mg/dL, mmol/L
     val timestamp: Long,
-    val referenceRange: String = ""
+    val referenceRange: String = "",
+    val profileId: Int = 0
 )
 
 @Entity(tableName = "lifestyle_records")
@@ -63,7 +69,8 @@ data class LifestyleRecord(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val type: String, // "smoking", "water", "exercise"
     val amount: Float, // count of cigarettes, ml of water, mins of exercise
-    val timestamp: Long
+    val timestamp: Long,
+    val profileId: Int = 0
 )
 
 @Entity(tableName = "attachments")
@@ -72,7 +79,8 @@ data class AttachmentRecord(
     val title: String,
     val fileUri: String, // URI of image/attachment
     val notes: String = "",
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val profileId: Int = 0
 )
 
 @Entity(tableName = "emergency_info")
@@ -96,7 +104,8 @@ data class BloodSugarRecord(
     val unit: String = "mg/dL", // e.g. "mg/dL" or "mmol/L"
     val category: String = "Fasting", // e.g. "Fasting", "Post-Prandial", "Random", "Bedtime"
     val timestamp: Long,
-    val notes: String = ""
+    val notes: String = "",
+    val profileId: Int = 0
 )
 
 @Entity(tableName = "mood_records")
@@ -104,7 +113,8 @@ data class MoodRecord(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val score: Int,   // 1 = very bad … 5 = great
     val notes: String = "",
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val profileId: Int = 0
 )
 
 @Entity(tableName = "medication_doses")
@@ -114,7 +124,8 @@ data class MedicationDoseRecord(
     val medicationName: String,
     val timestamp: Long = System.currentTimeMillis(),
     val taken: Boolean = true,
-    val notes: String = ""
+    val notes: String = "",
+    val profileId: Int = 0
 )
 
 @Entity(tableName = "appointments")
@@ -127,6 +138,15 @@ data class AppointmentRecord(
     val profileId: Int = 0,         // 0 = main user, else FamilyMemberProfile.id
     val profileName: String = "",   // display name for multi-profile context
     val isCompleted: Boolean = false
+)
+
+@Entity(tableName = "height_records")
+data class HeightRecord(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val heightCm: Float,
+    val timestamp: Long,
+    val notes: String = "",
+    val profileId: Int = 0
 )
 
 @Entity(tableName = "family_members")
