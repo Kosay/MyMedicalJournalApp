@@ -269,6 +269,9 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
     val heightRecords: StateFlow<List<HeightRecord>> =
         repository.allHeights.forActiveProfile { it.profileId }
 
+    val periodRecords: StateFlow<List<PeriodRecord>> =
+        repository.allPeriods.forActiveProfile { it.profileId }
+
     val familyMembers: StateFlow<List<FamilyMemberProfile>> = repository.allFamilyMembers
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -591,11 +594,26 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
 
     fun addAttachment(title: String, fileUri: String, notes: String) {
         viewModelScope.launch(Dispatchers.IO) {
+            // Copy into app storage so the file survives permission loss and is
+            // always readable for ZIP export
+            val storedUri = try {
+                val ctx = getApplication<Application>().applicationContext
+                val ext = fileUri.substringAfterLast('.', "").take(5)
+                val dir = File(ctx.filesDir, "attachments").apply { mkdirs() }
+                val dest = File(dir, "att_${System.currentTimeMillis()}" + if (ext.isNotEmpty()) ".$ext" else "")
+                ctx.contentResolver.openInputStream(Uri.parse(fileUri))?.use { input ->
+                    dest.outputStream().use { input.copyTo(it) }
+                }
+                if (dest.exists() && dest.length() > 0) Uri.fromFile(dest).toString() else fileUri
+            } catch (e: Exception) {
+                Log.w("Attachment", "Copy to app storage failed, keeping original URI: ${e.localizedMessage}")
+                fileUri
+            }
             repository.insertAttachment(
                 AttachmentRecord(
                     profileId = _activeProfileId.value,
                     title = title,
-                    fileUri = fileUri,
+                    fileUri = storedUri,
                     notes = notes,
                     timestamp = System.currentTimeMillis()
                 )
@@ -761,6 +779,56 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
 
     fun deleteHeight(record: HeightRecord) {
         viewModelScope.launch(Dispatchers.IO) { repository.deleteHeight(record) }
+    }
+
+    // --- Period tracking (women) ---
+    fun addPeriod(startTimestamp: Long, endTimestamp: Long, flow: String, notes: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertPeriod(
+                PeriodRecord(
+                    profileId = _activeProfileId.value,
+                    startTimestamp = startTimestamp,
+                    endTimestamp = endTimestamp,
+                    flow = flow,
+                    notes = notes
+                )
+            )
+        }
+    }
+
+    fun updatePeriod(record: PeriodRecord) {
+        viewModelScope.launch(Dispatchers.IO) { repository.insertPeriod(record) }
+    }
+
+    fun deletePeriod(record: PeriodRecord) {
+        viewModelScope.launch(Dispatchers.IO) { repository.deletePeriod(record) }
+    }
+
+    /**
+     * Cycle statistics from period history (records sorted newest-first):
+     * average cycle length in days (start-to-start, last 6 cycles) and the
+     * predicted next period start timestamp. Null when fewer than 2 periods.
+     */
+    fun cycleStats(records: List<PeriodRecord>): Pair<Int, Long>? {
+        val starts = records.map { it.startTimestamp }.sortedDescending()
+        if (starts.size < 2) return null
+        val gaps = starts.zipWithNext { newer, older -> ((newer - older) / 86_400_000L).toInt() }
+            .filter { it in 15..60 }  // ignore gaps that are clearly not consecutive cycles
+            .take(6)
+        if (gaps.isEmpty()) return null
+        val avg = gaps.average().toInt()
+        val next = starts.first() + avg * 86_400_000L
+        return Pair(avg, next)
+    }
+
+    /** True when the active profile is female (main user via emergency info, family member via profile). */
+    fun isActiveProfileFemale(): Boolean {
+        val femaleValues = setOf("female", "أنثى")
+        return if (_activeProfileId.value == 0) {
+            (emergencyInfo.value?.sex ?: "").lowercase() in femaleValues
+        } else {
+            (familyMembers.value.firstOrNull { it.id == _activeProfileId.value }?.sex ?: "").lowercase() in femaleValues
+        }
     }
 
     /** Age in years from a DD/MM/YYYY date-of-birth string, or null if unparseable. */
@@ -981,6 +1049,10 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         root.put("height_records", toJsonArray(repository.allHeights.first().byProfile { it.profileId }.map {
             JSONObject().put("profileId", it.profileId).put("heightCm", it.heightCm)
                 .put("timestamp", it.timestamp).put("notes", it.notes)
+        }))
+        root.put("period_records", toJsonArray(repository.allPeriods.first().byProfile { it.profileId }.map {
+            JSONObject().put("profileId", it.profileId).put("startTimestamp", it.startTimestamp)
+                .put("endTimestamp", it.endTimestamp).put("flow", it.flow).put("notes", it.notes)
         }))
         root.put("attachments", toJsonArray(repository.allAttachments.first().byProfile { it.profileId }.map {
             val ext = it.fileUri.substringAfterLast('.', "").take(5)
@@ -2099,6 +2171,18 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         }
         root.put("height_records", heightArr)
 
+        val periodArr = JSONArray()
+        periodRecords.value.forEach {
+            periodArr.put(JSONObject().apply {
+                put("profileId", it.profileId)
+                put("startTimestamp", it.startTimestamp)
+                put("endTimestamp", it.endTimestamp)
+                put("flow", it.flow)
+                put("notes", it.notes)
+            })
+        }
+        root.put("period_records", periodArr)
+
         return root.toString(2)
     }
 
@@ -2140,39 +2224,8 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun backupZIP(context: Context) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val dbData = generateJSON()
-                val zipFile = File(context.cacheDir, "medical_journal_backup_${System.currentTimeMillis()}.zip")
-                
-                ZipOutputStream(zipFile.outputStream()).use { zos ->
-                    // Add backup.json
-                    val entry = ZipEntry("backup.json")
-                    zos.putNextEntry(entry)
-                    zos.write(dbData.toByteArray())
-                    zos.closeEntry()
-                }
-
-                val uri = FileProvider.getUriForFile(
-                    context,
-                    "${context.packageName}.fileprovider",
-                    zipFile
-                )
-
-                val intent = Intent(Intent.ACTION_SEND).apply {
-                    type = "application/zip"
-                    putExtra(Intent.EXTRA_STREAM, uri)
-                    putExtra(Intent.EXTRA_SUBJECT, "My Medical Journal ZIP Backup")
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                }
-
-                withContext(Dispatchers.Main) {
-                    context.startActivity(Intent.createChooser(intent, "Save Backup ZIP..."))
-                }
-            } catch (e: Exception) {
-                Log.e("Backup", e.localizedMessage ?: "ZIP Error")
-            }
-        }
+        // Full backup: data.json for every profile plus all attachment files
+        exportFullZip(context, null)
     }
 
     fun backupLocally(context: Context) {
@@ -2821,6 +2874,23 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                             profileId = obj.optInt("profileId", 0),
                             heightCm = obj.optDouble("heightCm").toFloat(),
                             timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
+                            notes = obj.optString("notes")
+                        )
+                    )
+                }
+            }
+
+            // 12. Period records
+            root.optJSONArray("period_records")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    repository.insertPeriod(
+                        PeriodRecord(
+                            id = obj.optInt("id", 0),
+                            profileId = obj.optInt("profileId", 0),
+                            startTimestamp = obj.optLong("startTimestamp", System.currentTimeMillis()),
+                            endTimestamp = obj.optLong("endTimestamp", 0L),
+                            flow = obj.optString("flow", "Medium"),
                             notes = obj.optString("notes")
                         )
                     )

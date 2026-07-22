@@ -215,24 +215,27 @@ fun DashboardScreen(viewModel: HealthViewModel, lang: String) {
         item {
             // High fidelity 2x3 Grid Layout of medical metrics matched to Screenshot 1!
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                // Blood Pressure Card
+                // Blood Pressure Card — show "--" until a real record exists
                 DashboardCard(
                     title = trans("blood_pressure"),
-                    value = bpLatest?.let { "${it.systolic}/${it.diastolic}" } ?: "120/79",
-                    unit = "mmHg",
-                    statusText = bpLatest?.let { getBloodPressureStatus(it.systolic, it.diastolic, lang) } ?: trans("elevated"),
-                    statusColor = bpLatest?.let { getBloodPressureStatusColor(it.systolic, it.diastolic) } ?: WarningYellow,
+                    value = bpLatest?.let { "${it.systolic}/${it.diastolic}" } ?: "--",
+                    unit = if (bpLatest != null) "mmHg" else "",
+                    statusText = bpLatest?.let { getBloodPressureStatus(it.systolic, it.diastolic, lang) } ?: trans("no_records"),
+                    statusColor = bpLatest?.let { getBloodPressureStatusColor(it.systolic, it.diastolic) } ?: MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                     modifier = Modifier.weight(1f)
                 )
                 // Weight & Dynamic BMI Card
-                val wVal = weightLatest?.weightKg ?: 78.5f
-                val bmi = wVal / ((heightCm / 100f) * (heightCm / 100f))
-                val bmiText = "BMI ${String.format(Locale.US, "%.1f", bmi)}"
+                val wVal = weightLatest?.weightKg
+                val bmi = if (wVal != null && heightCm > 0f) wVal / ((heightCm / 100f) * (heightCm / 100f)) else null
                 DashboardCard(
                     title = trans("weight"),
-                    value = "$wVal kg",
-                    statusText = bmiText,
-                    statusColor = if (bmi in 18.5..24.9) HighlightTeal else WarningYellow,
+                    value = wVal?.let { "$it kg" } ?: "--",
+                    statusText = bmi?.let { "BMI ${String.format(Locale.US, "%.1f", it)}" } ?: trans("no_records"),
+                    statusColor = when {
+                        bmi == null -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                        bmi in 18.5..24.9 -> HighlightTeal
+                        else -> WarningYellow
+                    },
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -243,17 +246,17 @@ fun DashboardScreen(viewModel: HealthViewModel, lang: String) {
                 // Heart Rate Card
                 DashboardCard(
                     title = trans("heart_rate"),
-                    value = bpLatest?.let { "${it.heartRate} bpm" } ?: "90 bpm",
-                    statusText = if ((bpLatest?.heartRate ?: 90) in 60..100) trans("normal") else trans("elevated"),
-                    statusColor = HighlightTeal,
+                    value = bpLatest?.let { "${it.heartRate} bpm" } ?: "--",
+                    statusText = bpLatest?.let { if (it.heartRate in 60..100) trans("normal") else trans("elevated") } ?: trans("no_records"),
+                    statusColor = if (bpLatest != null) HighlightTeal else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                     modifier = Modifier.weight(1f)
                 )
                 // Sleep Card
                 DashboardCard(
                     title = trans("sleep"),
-                    value = sleepLatest?.let { "${it.hours} h" } ?: "7.5 h",
-                    statusText = if ((sleepLatest?.hours ?: 7.5f) >= 7.0f) trans("normal") else trans("low"),
-                    statusColor = HighlightTeal,
+                    value = sleepLatest?.let { "${it.hours} h" } ?: "--",
+                    statusText = sleepLatest?.let { if (it.hours >= 7.0f) trans("normal") else trans("low") } ?: trans("no_records"),
+                    statusColor = if (sleepLatest != null) HighlightTeal else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -262,26 +265,32 @@ fun DashboardScreen(viewModel: HealthViewModel, lang: String) {
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 // Cholesterol (Standard range < 200 mg/dL)
-                val cholVal = cholesterolLatest?.value ?: 195f
-                val cholStatus = if (cholVal < 200) trans("normal") else trans("high")
-                val cholColor = if (cholVal < 200) HighlightTeal else AlertRed
+                val cholVal = cholesterolLatest?.value
                 DashboardCard(
                     title = trans("cholesterol"),
-                    value = "${cholVal.toInt()}",
-                    unit = "mg/dL",
-                    statusText = cholStatus,
-                    statusColor = cholColor,
+                    value = cholVal?.let { "${it.toInt()}" } ?: "--",
+                    unit = if (cholVal != null) "mg/dL" else "",
+                    statusText = cholVal?.let { if (it < 200) trans("normal") else trans("high") } ?: trans("no_records"),
+                    statusColor = when {
+                        cholVal == null -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                        cholVal < 200 -> HighlightTeal
+                        else -> AlertRed
+                    },
                     modifier = Modifier.weight(1f)
                 )
-                // Triglycerides (Matches the 160 with warning icon from Screenshot 1!)
-                val trigVal = trigLatest?.value ?: 160f
-                val isTrigHigh = trigVal >= 150
+                // Triglycerides
+                val trigVal = trigLatest?.value
+                val isTrigHigh = trigVal != null && trigVal >= 150
                 DashboardCard(
                     title = trans("triglycerides"),
-                    value = "${trigVal.toInt()}",
-                    unit = "mg/dL",
-                    statusText = if (isTrigHigh) trans("high") else trans("normal"),
-                    statusColor = if (isTrigHigh) AlertRed else HighlightTeal,
+                    value = trigVal?.let { "${it.toInt()}" } ?: "--",
+                    unit = if (trigVal != null) "mg/dL" else "",
+                    statusText = trigVal?.let { if (isTrigHigh) trans("high") else trans("normal") } ?: trans("no_records"),
+                    statusColor = when {
+                        trigVal == null -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                        isTrigHigh -> AlertRed
+                        else -> HighlightTeal
+                    },
                     showWarningIcon = isTrigHigh,
                     modifier = Modifier.weight(1f)
                 )
@@ -289,20 +298,27 @@ fun DashboardScreen(viewModel: HealthViewModel, lang: String) {
         }
 
         item {
-            val sugarVal = sugarLatest?.value ?: 95f
-            val sugarCat = sugarLatest?.category ?: "Fasting"
-            val sugarUnit = sugarLatest?.unit ?: "mg/dL"
-            val sugarStatus = getBloodSugarStatus(sugarVal, sugarCat, lang, sugarUnit)
-            val sugarColor = getBloodSugarStatusColor(sugarVal, sugarCat, sugarUnit)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                DashboardCard(
-                    title = trans("blood_sugar"),
-                    value = "${sugarVal.toInt()}",
-                    unit = sugarUnit,
-                    statusText = "$sugarCat - $sugarStatus",
-                    statusColor = sugarColor,
-                    modifier = Modifier.weight(1f)
-                )
+                if (sugarLatest != null) {
+                    val sugarStatus = getBloodSugarStatus(sugarLatest.value, sugarLatest.category, lang, sugarLatest.unit)
+                    val sugarColor = getBloodSugarStatusColor(sugarLatest.value, sugarLatest.category, sugarLatest.unit)
+                    DashboardCard(
+                        title = trans("blood_sugar"),
+                        value = "${sugarLatest.value.toInt()}",
+                        unit = sugarLatest.unit,
+                        statusText = "${sugarLatest.category} - $sugarStatus",
+                        statusColor = sugarColor,
+                        modifier = Modifier.weight(1f)
+                    )
+                } else {
+                    DashboardCard(
+                        title = trans("blood_sugar"),
+                        value = "--",
+                        statusText = trans("no_records"),
+                        statusColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
         }
 
@@ -483,7 +499,7 @@ fun getBloodSugarReferenceRange(category: String, unit: String): String {
 // ==========================================
 // 2. TRACK SCREEN (Minds Screenshot 3)
 // ==========================================
-enum class TrackSection { NONE, BP, BLOOD_SUGAR, WEIGHT, MEDS, SYMPTOMS, SLEEP, LAB_RESULTS, HEIGHT }
+enum class TrackSection { NONE, BP, BLOOD_SUGAR, WEIGHT, MEDS, SYMPTOMS, SLEEP, LAB_RESULTS, HEIGHT, PERIOD }
 
 @Composable
 fun TrackScreen(viewModel: HealthViewModel, lang: String) {
@@ -493,11 +509,19 @@ fun TrackScreen(viewModel: HealthViewModel, lang: String) {
     if (activeSection == TrackSection.NONE) {
         val familyMembers by viewModel.familyMembers.collectAsState()
         val activeId by viewModel.activeProfileId.collectAsState()
+        val emergencyInfoState by viewModel.emergencyInfo.collectAsState()
         // Height tracking is offered for family members under 18 (child growth)
         val activeMember = familyMembers.firstOrNull { it.id == activeId }
         val isChildProfile = activeMember?.let { m ->
             viewModel.ageYears(m.dateOfBirth)?.let { it < 18 } ?: false
         } ?: false
+        // Period tracking is offered for female profiles (sex stored localized for family members)
+        val femaleValues = setOf("female", "أنثى")
+        val isFemaleProfile = if (activeId == 0) {
+            (emergencyInfoState?.sex ?: "").lowercase() in femaleValues
+        } else {
+            (activeMember?.sex ?: "").lowercase() in femaleValues
+        }
 
         LazyColumn(
             modifier = Modifier
@@ -514,6 +538,7 @@ fun TrackScreen(viewModel: HealthViewModel, lang: String) {
                 add(Pair("blood_sugar", TrackSection.BLOOD_SUGAR))
                 add(Pair("weight", TrackSection.WEIGHT))
                 if (isChildProfile) add(Pair("height_track", TrackSection.HEIGHT))
+                if (isFemaleProfile) add(Pair("period_track", TrackSection.PERIOD))
                 add(Pair("medications", TrackSection.MEDS))
                 add(Pair("symptoms", TrackSection.SYMPTOMS))
                 add(Pair("sleep", TrackSection.SLEEP))
@@ -555,6 +580,7 @@ fun TrackScreen(viewModel: HealthViewModel, lang: String) {
                             TrackSection.SYMPTOMS -> trans("symptoms")
                             TrackSection.SLEEP -> trans("sleep")
                             TrackSection.HEIGHT -> trans("height_track")
+                            TrackSection.PERIOD -> trans("period_track")
                             else -> trans("lab_results")
                         },
                         fontSize = 18.sp,
@@ -574,6 +600,7 @@ fun TrackScreen(viewModel: HealthViewModel, lang: String) {
                         TrackSection.SLEEP -> SleepDetailView(viewModel, lang)
                         TrackSection.LAB_RESULTS -> LabResultDetailView(viewModel, lang)
                         TrackSection.HEIGHT -> HeightDetailView(viewModel, lang)
+                        TrackSection.PERIOD -> PeriodDetailView(viewModel, lang)
                         else -> {}
                     }
                 }
@@ -1301,6 +1328,190 @@ fun HeightDetailView(viewModel: HealthViewModel, lang: String) {
                             }
                             showDialog = false; editingRecord = null
                             heightStr = ""; notesStr = ""
+                        }) {
+                            Text(if (editingRecord != null) trans("update") else trans("save"))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PeriodDetailView(viewModel: HealthViewModel, lang: String) {
+    fun trans(key: String) = LocalStrings.get(key, lang)
+    val records by viewModel.periodRecords.collectAsState()
+    var showDialog by remember { mutableStateOf(false) }
+    var editingRecord by remember { mutableStateOf<com.example.data.PeriodRecord?>(null) }
+
+    var startTs by remember { mutableStateOf(System.currentTimeMillis()) }
+    var endTs by remember { mutableStateOf(0L) }
+    var hasEnded by remember { mutableStateOf(false) }
+    var flowStr by remember { mutableStateOf("Medium") }
+    var notesStr by remember { mutableStateOf("") }
+    val context = LocalContext.current
+
+    val flowLabels = mapOf(
+        "Light" to trans("flow_light"),
+        "Medium" to trans("flow_medium"),
+        "Heavy" to trans("flow_heavy")
+    )
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Cycle summary: average length + predicted next period
+        val stats = viewModel.cycleStats(records)
+        if (stats != null) {
+            val (avgDays, nextTs) = stats
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                colors = CardDefaults.cardColors(containerColor = HighlightTeal.copy(alpha = 0.12f)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(trans("avg_cycle"), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("$avgDays ${trans("days_unit")}", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = HighlightTeal)
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(trans("next_expected"), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(viewModel.formatDateOnly(nextTs), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = HighlightTeal)
+                    }
+                }
+            }
+        }
+
+        Button(
+            onClick = {
+                editingRecord = null
+                startTs = System.currentTimeMillis(); endTs = 0L; hasEnded = false
+                flowStr = "Medium"; notesStr = ""
+                showDialog = true
+            },
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
+        ) {
+            Text(trans("add_period"), color = SlateDarkBg, fontWeight = FontWeight.Bold)
+        }
+
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(records) { record ->
+                val durationDays = if (record.endTimestamp > record.startTimestamp)
+                    ((record.endTimestamp - record.startTimestamp) / 86_400_000L).toInt() + 1 else null
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                viewModel.formatDateOnly(record.startTimestamp) +
+                                    if (record.endTimestamp > 0L) " → " + viewModel.formatDateOnly(record.endTimestamp)
+                                    else " (${trans("period_ongoing")})",
+                                fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                "${trans("flow_level")}: ${flowLabels[record.flow] ?: record.flow}" +
+                                    (durationDays?.let { "  •  ${trans("duration_label")}: $it ${trans("days_unit")}" } ?: ""),
+                                fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            if (record.notes.isNotEmpty()) {
+                                Text(record.notes, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                            }
+                        }
+                        Row {
+                            IconButton(onClick = {
+                                editingRecord = record
+                                startTs = record.startTimestamp
+                                endTs = record.endTimestamp
+                                hasEnded = record.endTimestamp > 0L
+                                flowStr = record.flow
+                                notesStr = record.notes
+                                showDialog = true
+                            }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = HighlightTeal)
+                            }
+                            IconButton(onClick = { viewModel.deletePeriod(record) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AlertRed)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showDialog) {
+        Dialog(onDismissRequest = { showDialog = false; editingRecord = null }) {
+            Card(modifier = Modifier.fillMaxWidth().padding(16.dp), shape = RoundedCornerShape(16.dp)) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(if (editingRecord != null) trans("edit_period") else trans("add_period"), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+
+                    DateTimePickerInline(context = context, timestamp = startTs, onTimestampChange = { startTs = it }, label = trans("period_start"))
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = hasEnded,
+                            onCheckedChange = {
+                                hasEnded = it
+                                endTs = if (it) (if (endTs > 0L) endTs else System.currentTimeMillis()) else 0L
+                            },
+                            colors = CheckboxDefaults.colors(checkedColor = HighlightTeal)
+                        )
+                        Text(trans("period_end"), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    if (hasEnded) {
+                        DateTimePickerInline(context = context, timestamp = endTs, onTimestampChange = { endTs = it }, label = trans("period_end"))
+                    }
+
+                    Text(trans("flow_level"), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("Light", "Medium", "Heavy").forEach { f ->
+                            val selected = flowStr == f
+                            Card(
+                                modifier = Modifier.weight(1f).clickable { flowStr = f },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = CardDefaults.cardColors(containerColor = if (selected) HighlightTeal else MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+                                    Text(flowLabels[f] ?: f, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                        color = if (selected) SlateDarkBg else MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = notesStr, onValueChange = { notesStr = it },
+                        label = { Text(trans("notes")) }, modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { showDialog = false; editingRecord = null }) { Text(trans("cancel")) }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(onClick = {
+                            val finalEnd = if (hasEnded) endTs else 0L
+                            val rec = editingRecord
+                            if (rec != null) {
+                                viewModel.updatePeriod(rec.copy(startTimestamp = startTs, endTimestamp = finalEnd, flow = flowStr, notes = notesStr))
+                            } else {
+                                viewModel.addPeriod(startTs, finalEnd, flowStr, notesStr)
+                            }
+                            showDialog = false; editingRecord = null
                         }) {
                             Text(if (editingRecord != null) trans("update") else trans("save"))
                         }

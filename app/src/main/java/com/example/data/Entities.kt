@@ -149,6 +149,16 @@ data class HeightRecord(
     val profileId: Int = 0
 )
 
+@Entity(tableName = "period_records")
+data class PeriodRecord(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val startTimestamp: Long,
+    val endTimestamp: Long = 0L,       // 0 = ongoing
+    val flow: String = "Medium",       // "Light" | "Medium" | "Heavy"
+    val notes: String = "",
+    val profileId: Int = 0
+)
+
 @Entity(tableName = "family_members")
 data class FamilyMemberProfile(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
