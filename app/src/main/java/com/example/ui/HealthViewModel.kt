@@ -640,6 +640,10 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
     // --- Onboarding ---
     val onboardingCompleted: Boolean get() = sharedPrefs.getBoolean("onboarding_completed", false)
 
+    fun markOnboardingComplete() {
+        sharedPrefs.edit().putBoolean("onboarding_completed", true).apply()
+    }
+
     fun completeOnboarding(info: EmergencyInfo, heightCm: Float, weightKg: Float) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertEmergencyInfo(info)

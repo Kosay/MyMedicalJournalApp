@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -39,21 +43,38 @@ fun OnboardingScreen(
     fun trans(key: String) = LocalStrings.get(key, lang)
 
     var step by remember { mutableStateOf(1) }
-    val totalSteps = 4
+    val totalSteps = 5
 
-    // Step 2 – Personal Info
+    val context = LocalContext.current
+    var importError by remember { mutableStateOf("") }
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            viewModel.importLocalBackup(context, uri) { success, msg ->
+                if (success) {
+                    viewModel.markOnboardingComplete()
+                    onFinished()
+                } else {
+                    importError = msg
+                }
+            }
+        }
+    }
+
+    // Step 3 – Personal Info
     var fullName        by remember { mutableStateOf("") }
     var sex             by remember { mutableStateOf("") }
     var dateOfBirth     by remember { mutableStateOf("") }
     var heightCmText    by remember { mutableStateOf("") }
     var weightKgText    by remember { mutableStateOf("") }
 
-    // Step 3 – Medical Info
+    // Step 4 – Medical Info
     var bloodType       by remember { mutableStateOf("") }
     var conditions      by remember { mutableStateOf("") }
     var allergies       by remember { mutableStateOf("") }
 
-    // Step 4 – Emergency Contact
+    // Step 5 – Emergency Contact
     var contactName     by remember { mutableStateOf("") }
     var contactPhone    by remember { mutableStateOf("") }
     var additionalNotes by remember { mutableStateOf("") }
@@ -71,12 +92,12 @@ fun OnboardingScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Progress dots
-            if (step > 1) {
+            if (step > 2) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.padding(bottom = 32.dp)
                 ) {
-                    (1..totalSteps).forEach { i ->
+                    (3..totalSteps).forEach { i ->
                         Box(
                             modifier = Modifier
                                 .size(if (i == step) 10.dp else 8.dp)
@@ -85,11 +106,11 @@ fun OnboardingScreen(
                         )
                     }
                 }
-                // Step label
+                // Step label (info steps numbered 1-3 of 3)
                 Text(
                     text = trans("step_of")
-                        .replace("%1", step.toString())
-                        .replace("%2", totalSteps.toString()),
+                        .replace("%1", (step - 2).toString())
+                        .replace("%2", (totalSteps - 2).toString()),
                     color = MutedText,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(bottom = 16.dp)
@@ -97,8 +118,21 @@ fun OnboardingScreen(
             }
 
             when (step) {
-                1 -> WelcomeStep(trans = ::trans, onGetStarted = { step = 2 })
-                2 -> PersonalInfoStep(
+                1 -> LanguageStep(
+                    trans = ::trans,
+                    currentLang = lang,
+                    onLanguageChosen = { chosen ->
+                        viewModel.updateLanguage(chosen)
+                        step = 2
+                    }
+                )
+                2 -> WelcomeStep(
+                    trans = ::trans,
+                    onGetStarted = { step = 3 },
+                    onRestoreBackup = { importLauncher.launch("application/json") },
+                    importError = importError
+                )
+                3 -> PersonalInfoStep(
                     trans = ::trans,
                     fullName = fullName, onFullNameChange = { fullName = it },
                     sex = sex, onSexChange = { sex = it },
@@ -106,13 +140,13 @@ fun OnboardingScreen(
                     heightCmText = heightCmText, onHeightChange = { heightCmText = it },
                     weightKgText = weightKgText, onWeightChange = { weightKgText = it }
                 )
-                3 -> MedicalInfoStep(
+                4 -> MedicalInfoStep(
                     trans = ::trans,
                     bloodType = bloodType, onBloodTypeChange = { bloodType = it },
                     conditions = conditions, onConditionsChange = { conditions = it },
                     allergies = allergies, onAllergiesChange = { allergies = it }
                 )
-                4 -> EmergencyContactStep(
+                5 -> EmergencyContactStep(
                     trans = ::trans,
                     contactName = contactName, onContactNameChange = { contactName = it },
                     contactPhone = contactPhone, onContactPhoneChange = { contactPhone = it },
@@ -122,8 +156,8 @@ fun OnboardingScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Navigation buttons (shown for steps 2-4)
-            if (step > 1) {
+            // Navigation buttons (shown for the info steps 3-5)
+            if (step > 2) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -186,7 +220,80 @@ fun OnboardingScreen(
 }
 
 @Composable
-private fun WelcomeStep(trans: (String) -> String, onGetStarted: () -> Unit) {
+private fun LanguageStep(
+    trans: (String) -> String,
+    currentLang: String,
+    onLanguageChosen: (String) -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Spacer(modifier = Modifier.height(64.dp))
+
+        Box(
+            modifier = Modifier
+                .size(96.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(HighlightTeal.copy(alpha = 0.15f))
+                .border(2.dp, HighlightTeal, RoundedCornerShape(24.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = "🌐", fontSize = 40.sp)
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // Both languages shown so either speaker understands
+        Text(
+            text = "Choose your language",
+            color = Color.White,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+        Text(
+            text = "اختر لغتك",
+            color = Color.White,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        listOf("en" to "English", "ar" to "العربية").forEach { (code, label) ->
+            val selected = currentLang == code
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (selected) HighlightTeal else SlateCardBg)
+                    .border(1.dp, if (selected) HighlightTeal else DividerColor, RoundedCornerShape(14.dp))
+                    .clickable { onLanguageChosen(code) }
+                    .padding(vertical = 18.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = label,
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WelcomeStep(
+    trans: (String) -> String,
+    onGetStarted: () -> Unit,
+    onRestoreBackup: () -> Unit,
+    importError: String
+) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
@@ -240,6 +347,35 @@ private fun WelcomeStep(trans: (String) -> String, onGetStarted: () -> Unit) {
                 color = Color.White,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Restore existing data instead of setting up from scratch
+        OutlinedButton(
+            onClick = onRestoreBackup,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = HighlightTeal),
+            border = androidx.compose.foundation.BorderStroke(1.dp, HighlightTeal),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Text(
+                text = trans("restore_from_backup"),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+
+        if (importError.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "${trans("import_failed")}: $importError",
+                color = Color(0xFFFF6B6B),
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center
             )
         }
     }

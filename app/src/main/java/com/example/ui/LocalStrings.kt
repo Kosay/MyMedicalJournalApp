@@ -94,6 +94,9 @@ object LocalStrings {
             "date_of_birth" to "Date of Birth",
 
             // Onboarding
+            "choose_language" to "Choose your language",
+            "restore_from_backup" to "I have a backup — Restore from JSON",
+            "import_failed" to "Import failed",
             "onboarding_welcome" to "Welcome to My Medical Journal",
             "onboarding_subtitle" to "Your personal health companion",
             "get_started" to "Get Started",
@@ -308,6 +311,9 @@ object LocalStrings {
             "date_of_birth" to "تاريخ الميلاد",
 
             // Onboarding
+            "choose_language" to "اختر لغتك",
+            "restore_from_backup" to "لدي نسخة احتياطية — استعادة من JSON",
+            "import_failed" to "فشل الاستيراد",
             "onboarding_welcome" to "مرحباً في مجلة صحتي",
             "onboarding_subtitle" to "رفيقك الصحي الشخصي",
             "get_started" to "ابدأ الآن",
