@@ -135,6 +135,16 @@ interface HealthDao {
     @Delete
     suspend fun deleteFamilyMember(profile: FamilyMemberProfile)
 
+    // --- Height (child growth) ---
+    @Query("SELECT * FROM height_records ORDER BY timestamp DESC")
+    fun getAllHeights(): Flow<List<HeightRecord>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertHeight(record: HeightRecord)
+
+    @Delete
+    suspend fun deleteHeight(record: HeightRecord)
+
     // --- Appointments ---
     @Query("SELECT * FROM appointments ORDER BY dateTimestamp ASC")
     fun getAllAppointments(): Flow<List<AppointmentRecord>>

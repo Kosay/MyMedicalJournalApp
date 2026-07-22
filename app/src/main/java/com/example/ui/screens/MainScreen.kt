@@ -10,6 +10,7 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -139,6 +140,47 @@ fun MainScreen(viewModel: HealthViewModel) {
     }
 }
 
+// Profile selector: switch whose records are shown/added across the whole app
+@Composable
+fun ProfileSelectorRow(viewModel: HealthViewModel, lang: String) {
+    fun trans(key: String): String = LocalStrings.get(key, lang)
+    val familyMembers by viewModel.familyMembers.collectAsState()
+    val activeId by viewModel.activeProfileId.collectAsState()
+
+    LazyRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        item {
+            FilterChip(
+                selected = activeId == 0,
+                onClick = { viewModel.setActiveProfile(null) },
+                label = { Text(trans("me"), fontWeight = if (activeId == 0) FontWeight.Bold else FontWeight.Normal) },
+                leadingIcon = { Icon(Icons.Default.Person, null, modifier = Modifier.size(16.dp)) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = HighlightTeal,
+                    selectedLabelColor = SlateDarkBg,
+                    selectedLeadingIconColor = SlateDarkBg
+                )
+            )
+        }
+        items(familyMembers) { member ->
+            val selected = activeId == member.id
+            FilterChip(
+                selected = selected,
+                onClick = { viewModel.setActiveProfile(member) },
+                label = { Text(member.name, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) },
+                leadingIcon = { Icon(Icons.Default.Group, null, modifier = Modifier.size(16.dp)) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = HighlightTeal,
+                    selectedLabelColor = SlateDarkBg,
+                    selectedLeadingIconColor = SlateDarkBg
+                )
+            )
+        }
+    }
+}
+
 // ==========================================
 // 1. DASHBOARD SCREEN
 // ==========================================
@@ -166,6 +208,10 @@ fun DashboardScreen(viewModel: HealthViewModel, lang: String) {
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        item {
+            ProfileSelectorRow(viewModel, lang)
+        }
+
         item {
             // High fidelity 2x3 Grid Layout of medical metrics matched to Screenshot 1!
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -437,7 +483,7 @@ fun getBloodSugarReferenceRange(category: String, unit: String): String {
 // ==========================================
 // 2. TRACK SCREEN (Minds Screenshot 3)
 // ==========================================
-enum class TrackSection { NONE, BP, BLOOD_SUGAR, WEIGHT, MEDS, SYMPTOMS, SLEEP, LAB_RESULTS }
+enum class TrackSection { NONE, BP, BLOOD_SUGAR, WEIGHT, MEDS, SYMPTOMS, SLEEP, LAB_RESULTS, HEIGHT }
 
 @Composable
 fun TrackScreen(viewModel: HealthViewModel, lang: String) {
@@ -445,21 +491,34 @@ fun TrackScreen(viewModel: HealthViewModel, lang: String) {
     fun trans(key: String): String = LocalStrings.get(key, lang)
 
     if (activeSection == TrackSection.NONE) {
+        val familyMembers by viewModel.familyMembers.collectAsState()
+        val activeId by viewModel.activeProfileId.collectAsState()
+        // Height tracking is offered for family members under 18 (child growth)
+        val activeMember = familyMembers.firstOrNull { it.id == activeId }
+        val isChildProfile = activeMember?.let { m ->
+            viewModel.ageYears(m.dateOfBirth)?.let { it < 18 } ?: false
+        } ?: false
+
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            val list = listOf(
-                Pair("blood_pressure", TrackSection.BP),
-                Pair("blood_sugar", TrackSection.BLOOD_SUGAR),
-                Pair("weight", TrackSection.WEIGHT),
-                Pair("medications", TrackSection.MEDS),
-                Pair("symptoms", TrackSection.SYMPTOMS),
-                Pair("sleep", TrackSection.SLEEP),
-                Pair("lab_results", TrackSection.LAB_RESULTS)
-            )
+            item {
+                ProfileSelectorRow(viewModel, lang)
+            }
+
+            val list = buildList {
+                add(Pair("blood_pressure", TrackSection.BP))
+                add(Pair("blood_sugar", TrackSection.BLOOD_SUGAR))
+                add(Pair("weight", TrackSection.WEIGHT))
+                if (isChildProfile) add(Pair("height_track", TrackSection.HEIGHT))
+                add(Pair("medications", TrackSection.MEDS))
+                add(Pair("symptoms", TrackSection.SYMPTOMS))
+                add(Pair("sleep", TrackSection.SLEEP))
+                add(Pair("lab_results", TrackSection.LAB_RESULTS))
+            }
 
             items(list) { (stringKey, section) ->
                 TrackMenuItemCard(
@@ -495,6 +554,7 @@ fun TrackScreen(viewModel: HealthViewModel, lang: String) {
                             TrackSection.MEDS -> trans("medications")
                             TrackSection.SYMPTOMS -> trans("symptoms")
                             TrackSection.SLEEP -> trans("sleep")
+                            TrackSection.HEIGHT -> trans("height_track")
                             else -> trans("lab_results")
                         },
                         fontSize = 18.sp,
@@ -513,6 +573,7 @@ fun TrackScreen(viewModel: HealthViewModel, lang: String) {
                         TrackSection.SYMPTOMS -> SymptomDetailView(viewModel, lang)
                         TrackSection.SLEEP -> SleepDetailView(viewModel, lang)
                         TrackSection.LAB_RESULTS -> LabResultDetailView(viewModel, lang)
+                        TrackSection.HEIGHT -> HeightDetailView(viewModel, lang)
                         else -> {}
                     }
                 }
@@ -1127,6 +1188,121 @@ fun WeightDetailView(viewModel: HealthViewModel, lang: String) {
                             weightStr = ""; notesStr = ""
                         }) {
                             Text(if (editingRecord != null) "Update" else "Save")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun HeightDetailView(viewModel: HealthViewModel, lang: String) {
+    fun trans(key: String) = LocalStrings.get(key, lang)
+    val records by viewModel.heightRecords.collectAsState()
+    var showDialog by remember { mutableStateOf(false) }
+    var editingRecord by remember { mutableStateOf<com.example.data.HeightRecord?>(null) }
+
+    var heightStr by remember { mutableStateOf("") }
+    var notesStr by remember { mutableStateOf("") }
+    var customTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
+    val context = LocalContext.current
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (records.isNotEmpty()) {
+            val chartPoints = records.take(7).reversed().map { it.heightCm }
+            TrendLineChart(points = chartPoints, label = trans("height_cm"))
+        }
+
+        Button(
+            onClick = {
+                editingRecord = null; heightStr = ""; notesStr = ""
+                customTimestamp = System.currentTimeMillis()
+                showDialog = true
+            },
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
+        ) {
+            Text(trans("add_height"), color = SlateDarkBg, fontWeight = FontWeight.Bold)
+        }
+
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(records) { record ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("${record.heightCm} cm", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            if (record.notes.isNotEmpty()) {
+                                Text(record.notes, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Text(viewModel.formatDate(record.timestamp), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                        }
+                        Row {
+                            IconButton(onClick = {
+                                editingRecord = record
+                                heightStr = record.heightCm.toString()
+                                notesStr = record.notes
+                                customTimestamp = record.timestamp
+                                showDialog = true
+                            }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = HighlightTeal)
+                            }
+                            IconButton(onClick = { viewModel.deleteHeight(record) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AlertRed)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showDialog) {
+        Dialog(onDismissRequest = { showDialog = false; editingRecord = null }) {
+            Card(modifier = Modifier.fillMaxWidth().padding(16.dp), shape = RoundedCornerShape(16.dp)) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(if (editingRecord != null) trans("edit_height") else trans("add_height"), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    OutlinedTextField(
+                        value = heightStr, onValueChange = { heightStr = it },
+                        label = { Text(trans("height_cm")) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = notesStr, onValueChange = { notesStr = it },
+                        label = { Text(trans("notes")) }, modifier = Modifier.fillMaxWidth()
+                    )
+                    DateTimePickerInline(context = context, timestamp = customTimestamp, onTimestampChange = { customTimestamp = it })
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { showDialog = false; editingRecord = null }) { Text(trans("cancel")) }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(onClick = {
+                            val h = heightStr.toFloatOrNull() ?: 0f
+                            if (h > 0f) {
+                                val rec = editingRecord
+                                if (rec != null) {
+                                    viewModel.updateHeight(rec.copy(heightCm = h, notes = notesStr, timestamp = customTimestamp))
+                                } else {
+                                    viewModel.addHeight(h, notesStr, customTimestamp)
+                                }
+                            }
+                            showDialog = false; editingRecord = null
+                            heightStr = ""; notesStr = ""
+                        }) {
+                            Text(if (editingRecord != null) trans("update") else trans("save"))
                         }
                     }
                 }
@@ -3149,7 +3325,11 @@ fun FamilyMembersView(viewModel: HealthViewModel, lang: String) {
                         Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(m.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
-                                if (m.relationship.isNotEmpty()) Text(m.relationship, fontSize = 13.sp, color = HighlightTeal)
+                                if (m.relationship.isNotEmpty()) {
+                                    val relKey = "rel_" + m.relationship.lowercase()
+                                    val localized = LocalStrings.get(relKey, lang)
+                                    Text(if (localized != relKey) localized else m.relationship, fontSize = 13.sp, color = HighlightTeal)
+                                }
                                 if (m.sex.isNotEmpty()) Text(trans("sex") + ": " + m.sex, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 if (m.dateOfBirth.isNotEmpty()) Text(trans("date_of_birth") + ": " + m.dateOfBirth, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 if (m.bloodType.isNotEmpty()) Text(trans("blood_type") + ": " + m.bloodType, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -3196,7 +3376,41 @@ fun FamilyMembersView(viewModel: HealthViewModel, lang: String) {
                     Text(if (editingMember != null) "Edit Member" else trans("add") + " " + trans("family_members"), fontWeight = FontWeight.Bold, fontSize = 16.sp)
 
                     OutlinedTextField(value = nameStr, onValueChange = { nameStr = it }, label = { Text(trans("full_name") + " *") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = relStr, onValueChange = { relStr = it }, label = { Text(trans("relationship")) }, modifier = Modifier.fillMaxWidth())
+
+                    // Relationship dropdown (stored as stable English key, displayed localized)
+                    val relationshipOptions = listOf("Wife", "Husband", "Son", "Daughter", "Father", "Mother", "Brother", "Sister", "Other")
+                    fun relLabel(rel: String) = when (rel) {
+                        "Wife" -> trans("rel_wife"); "Husband" -> trans("rel_husband")
+                        "Son" -> trans("rel_son"); "Daughter" -> trans("rel_daughter")
+                        "Father" -> trans("rel_father"); "Mother" -> trans("rel_mother")
+                        "Brother" -> trans("rel_brother"); "Sister" -> trans("rel_sister")
+                        "Other" -> trans("rel_other"); else -> rel
+                    }
+                    var relExpanded by remember { mutableStateOf(false) }
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = relLabel(relStr),
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(trans("relationship")) },
+                            trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        // Transparent click layer — readOnly text fields swallow clicks
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable { relExpanded = true }
+                        )
+                        DropdownMenu(expanded = relExpanded, onDismissRequest = { relExpanded = false }) {
+                            relationshipOptions.forEach { rel ->
+                                DropdownMenuItem(
+                                    text = { Text(relLabel(rel)) },
+                                    onClick = { relStr = rel; relExpanded = false }
+                                )
+                            }
+                        }
+                    }
 
                     Text(trans("sex"), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -3214,7 +3428,40 @@ fun FamilyMembersView(viewModel: HealthViewModel, lang: String) {
                         }
                     }
 
-                    OutlinedTextField(value = dobStr, onValueChange = { dobStr = it }, label = { Text(trans("date_of_birth") + " (DD/MM/YYYY)") }, modifier = Modifier.fillMaxWidth())
+                    // Date of birth via calendar picker (stored as DD/MM/YYYY)
+                    val dialogContext = LocalContext.current
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = dobStr,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(trans("date_of_birth")) },
+                            trailingIcon = { Icon(Icons.Default.DateRange, null, tint = HighlightTeal) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable {
+                                    val cal = java.util.Calendar.getInstance()
+                                    val parts = dobStr.split("/")
+                                    if (parts.size == 3) {
+                                        parts[2].toIntOrNull()?.let { y -> cal.set(java.util.Calendar.YEAR, y) }
+                                        parts[1].toIntOrNull()?.let { m -> cal.set(java.util.Calendar.MONTH, m - 1) }
+                                        parts[0].toIntOrNull()?.let { d -> cal.set(java.util.Calendar.DAY_OF_MONTH, d) }
+                                    }
+                                    android.app.DatePickerDialog(
+                                        dialogContext,
+                                        { _, year, month, dayOfMonth ->
+                                            dobStr = String.format(Locale.US, "%02d/%02d/%04d", dayOfMonth, month + 1, year)
+                                        },
+                                        cal.get(java.util.Calendar.YEAR),
+                                        cal.get(java.util.Calendar.MONTH),
+                                        cal.get(java.util.Calendar.DAY_OF_MONTH)
+                                    ).show()
+                                }
+                        )
+                    }
 
                     Text(trans("blood_type_select"), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -3689,6 +3936,28 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                             Text(trans("share_whatsapp"), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
+
+                    // Full ZIP export: selected profile only, or everything with all files
+                    Button(
+                        onClick = { viewModel.exportFullZip(context, selectedProfile?.id ?: 0) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal.copy(alpha = 0.85f)),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                    ) {
+                        Icon(Icons.Default.FolderZip, null, modifier = Modifier.size(14.dp), tint = SlateDarkBg)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(trans("export_zip_full"), color = SlateDarkBg, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                    OutlinedButton(
+                        onClick = { viewModel.exportFullZip(context, null) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = HighlightTeal),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                    ) {
+                        Icon(Icons.Default.FolderZip, null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(trans("export_zip_full") + " — " + trans("family_members"), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
@@ -3821,6 +4090,29 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                                     Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
                                     Text(trans("restore"), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
+                            }
+                        }
+
+                        // ZIP restore (data + attachment files)
+                        val zipPickerLauncher = rememberLauncherForActivityResult(
+                            contract = ActivityResultContracts.GetContent()
+                        ) { uri: Uri? ->
+                            if (uri != null) {
+                                viewModel.importZipBackup(context, uri) { success, msg ->
+                                    importStatusMessage = if (success) trans("restore_successful") else "${trans("restore_status")}: $msg"
+                                    showImportStatus = true
+                                }
+                            }
+                        }
+                        OutlinedButton(
+                            onClick = { zipPickerLauncher.launch("application/zip") },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = HighlightTeal),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Icon(Icons.Default.FolderZip, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Text(trans("import_zip"), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
