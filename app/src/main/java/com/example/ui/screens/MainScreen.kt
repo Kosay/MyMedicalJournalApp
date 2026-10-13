@@ -4210,14 +4210,28 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                             Text(trans("all_time"), fontSize = 10.sp)
                         }
                     }
-                    Button(
-                        onClick = { viewModel.exportForDoctor(context, "sinceLast") },
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp), tint = SlateDarkBg)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(trans("send_new_records"), color = SlateDarkBg, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        Button(
+                            onClick = { viewModel.exportForDoctorJSON(context, "all") },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp), tint = SlateDarkBg)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Doctor JSON", color = SlateDarkBg, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                        }
+                        Button(
+                            onClick = { viewModel.exportForDoctor(context, "sinceLast") },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal.copy(alpha = 0.85f))
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp), tint = SlateDarkBg)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(trans("send_new_records"), color = SlateDarkBg, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                        }
                     }
                 }
             }

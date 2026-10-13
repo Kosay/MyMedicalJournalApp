@@ -1,0 +1,483 @@
+{
+  "schema_version": "2.0.0",
+  "export_metadata": {
+    "generated_at": "2026-10-12 18:30:00",
+    "application": "My Medical Journal",
+    "export_purpose": "Physician Clinical Review & EHR Ingestion",
+    "data_standard": "Physician Web Dashboard Clean JSON Specification v2",
+    "confidentiality": "Protected Health Information (PHI) - Medical In-Confidence"
+  },
+  "clinical_triage_alerts": {
+    "status": "ATTENTION_REQUIRED",
+    "triage_level": "WARNING",
+    "high_priority_findings": [
+      {
+        "type": "STAGE_2_HYPERTENSION",
+        "severity": "WARNING",
+        "message": "Persistent Stage 2 Hypertension: Latest sitting BP 148/92 mmHg (exceeds 140/90 mmHg target threshold).",
+        "value": "148/92",
+        "unit": "mmHg",
+        "recorded_at": "2026-10-12 08:15:00"
+      },
+      {
+        "type": "ELEVATED_FASTING_GLUCOSE",
+        "severity": "WARNING",
+        "message": "Fasting blood sugar elevated at 142 mg/dL (target fasting range: 70-130 mg/dL for T2DM).",
+        "value": 142.0,
+        "unit": "mg/dL",
+        "recorded_at": "2026-10-12 07:30:00"
+      }
+    ],
+    "recent_vitals_summary": {
+      "latest_blood_pressure": "148/92 mmHg",
+      "latest_heart_rate": "74 bpm",
+      "latest_blood_glucose": "142 mg/dL (fasting)",
+      "latest_weight_kg": 84.5,
+      "calculated_bmi": 26.67,
+      "bmi_category": "Overweight"
+    }
+  },
+  "patient_profile": {
+    "patient_id": "PT-10492",
+    "full_name": "John Doe",
+    "age": 52,
+    "date_of_birth": "1974-05-18",
+    "sex": "Male",
+    "blood_type": "O+",
+    "height_cm": 178.0,
+    "weight_kg": 84.5,
+    "bmi": 26.67,
+    "chronic_conditions": [
+      "Stage 2 Essential Hypertension",
+      "Type 2 Diabetes Mellitus (non-insulin-dependent)",
+      "Mixed Hyperlipidemia"
+    ],
+    "allergies": [
+      "Penicillin (rash / urticaria)",
+      "Sulfa Antibiotics (mild pruritus)"
+    ],
+    "emergency_contact": {
+      "name": "Sarah Doe",
+      "relationship": "Spouse",
+      "phone": "+1-555-019-2834",
+      "alternative_phone": "+1-555-019-2835"
+    },
+    "attending_physician": {
+      "doctor_name": "Dr. Emily Vance, MD",
+      "specialty": "Internal Medicine",
+      "clinic": "Metro Health Family Practice",
+      "contact_phone": "+1-555-012-3456"
+    },
+    "additional_clinical_notes": "Patient monitors BP twice daily and fasting glucose every morning. History of mild morning tension headaches when systolic > 145 mmHg."
+  },
+  "family_members": [
+    {
+      "member_id": "FM-01",
+      "name": "Sarah Doe",
+      "relationship": "Wife",
+      "age": 49,
+      "date_of_birth": "1977-08-22",
+      "sex": "Female",
+      "blood_type": "A+",
+      "height_cm": 165.0,
+      "weight_kg": 62.0,
+      "chronic_conditions": [
+        "Mild Allergic Asthma"
+      ],
+      "allergies": [
+        "Pollen",
+        "Dust Mites"
+      ],
+      "emergency_contact": {
+        "name": "John Doe",
+        "phone": "+1-555-019-2830"
+      },
+      "notes": "Uses Albuterol inhaler PRN during seasonal pollen spikes."
+    },
+    {
+      "member_id": "FM-02",
+      "name": "Maya Doe",
+      "relationship": "Daughter",
+      "age": 16,
+      "date_of_birth": "2010-03-14",
+      "sex": "Female",
+      "blood_type": "O+",
+      "height_cm": 162.0,
+      "weight_kg": 52.0,
+      "chronic_conditions": [],
+      "allergies": [
+        "Peanuts (anaphylaxis - carries EpiPen)"
+      ],
+      "emergency_contact": {
+        "name": "Sarah Doe",
+        "phone": "+1-555-019-2834"
+      },
+      "notes": "School health plan on file for peanut allergy. Regular adolescent checkup up-to-date."
+    }
+  ],
+  "medications": [
+    {
+      "medication_id": "MED-01",
+      "name": "Lisinopril",
+      "generic_name": "Lisinopril",
+      "dosage": "20 mg",
+      "route": "Oral",
+      "frequency": "Once daily in the morning",
+      "status": "active",
+      "start_date": "2024-01-15",
+      "stopped_date": null,
+      "prescribed_by": "Dr. Emily Vance, MD",
+      "indication": "Hypertension management",
+      "adherence_rate": "96%"
+    },
+    {
+      "medication_id": "MED-02",
+      "name": "Metformin Extended Release",
+      "generic_name": "Metformin HCl ER",
+      "dosage": "500 mg",
+      "route": "Oral",
+      "frequency": "Twice daily with meals",
+      "status": "active",
+      "start_date": "2024-02-01",
+      "stopped_date": null,
+      "prescribed_by": "Dr. Emily Vance, MD",
+      "indication": "Type 2 Diabetes Mellitus glycemic control",
+      "adherence_rate": "94%"
+    },
+    {
+      "medication_id": "MED-03",
+      "name": "Atorvastatin",
+      "generic_name": "Atorvastatin Calcium",
+      "dosage": "20 mg",
+      "route": "Oral",
+      "frequency": "Once daily at bedtime",
+      "status": "active",
+      "start_date": "2024-03-10",
+      "stopped_date": null,
+      "prescribed_by": "Dr. Emily Vance, MD",
+      "indication": "Hyperlipidemia / cardiovascular risk reduction",
+      "adherence_rate": "98%"
+    },
+    {
+      "medication_id": "MED-04",
+      "name": "Hydrochlorothiazide",
+      "generic_name": "Hydrochlorothiazide",
+      "dosage": "12.5 mg",
+      "route": "Oral",
+      "frequency": "Once daily",
+      "status": "stopped",
+      "start_date": "2023-06-01",
+      "stopped_date": "2024-01-14",
+      "prescribed_by": "Dr. Emily Vance, MD",
+      "indication": "Hypertension",
+      "discontinuation_reason": "Replaced with Lisinopril 20mg due to mild hypokalemia and optimal BP goal attainment"
+    },
+    {
+      "medication_id": "MED-05",
+      "name": "Amoxicillin",
+      "generic_name": "Amoxicillin",
+      "dosage": "500 mg",
+      "route": "Oral",
+      "frequency": "Three times daily for 10 days",
+      "status": "stopped",
+      "start_date": "2024-04-05",
+      "stopped_date": "2024-04-15",
+      "prescribed_by": "Dr. Robert Chen, DDS",
+      "indication": "Prophylaxis and treatment for post-extraction dental infection",
+      "discontinuation_reason": "Completed planned 10-day antibacterial course without complications"
+    }
+  ],
+  "vital_signs": {
+    "blood_pressure": [
+      {
+        "measured_at": "2026-10-12 08:15:00",
+        "systolic": 148,
+        "diastolic": 92,
+        "unit": "mmHg",
+        "heart_rate": 74,
+        "heart_rate_unit": "bpm",
+        "measurement_site": "Left Arm",
+        "posture": "Sitting",
+        "clinical_category": "Stage 2 Hypertension",
+        "medication_status": "Pre-morning medication",
+        "notes": "Mild occipital headache on waking; rested 5 minutes prior to cuff measurement"
+      },
+      {
+        "measured_at": "2026-10-11 20:30:00",
+        "systolic": 136,
+        "diastolic": 86,
+        "unit": "mmHg",
+        "heart_rate": 70,
+        "heart_rate_unit": "bpm",
+        "measurement_site": "Left Arm",
+        "posture": "Sitting",
+        "clinical_category": "Stage 1 Hypertension",
+        "medication_status": "Post-medication",
+        "notes": "Evening routine check after dinner and relaxation"
+      },
+      {
+        "measured_at": "2026-10-11 08:10:00",
+        "systolic": 144,
+        "diastolic": 90,
+        "unit": "mmHg",
+        "heart_rate": 72,
+        "heart_rate_unit": "bpm",
+        "measurement_site": "Left Arm",
+        "posture": "Sitting",
+        "clinical_category": "Stage 2 Hypertension",
+        "medication_status": "Pre-morning medication",
+        "notes": "Morning reading prior to breakfast"
+      },
+      {
+        "measured_at": "2026-10-10 08:20:00",
+        "systolic": 142,
+        "diastolic": 88,
+        "unit": "mmHg",
+        "heart_rate": 68,
+        "heart_rate_unit": "bpm",
+        "measurement_site": "Left Arm",
+        "posture": "Sitting",
+        "clinical_category": "Stage 1 Hypertension",
+        "medication_status": "Pre-morning medication",
+        "notes": "Felt rested, no headache"
+      },
+      {
+        "measured_at": "2026-10-09 19:45:00",
+        "systolic": 132,
+        "diastolic": 84,
+        "unit": "mmHg",
+        "heart_rate": 76,
+        "heart_rate_unit": "bpm",
+        "measurement_site": "Right Arm",
+        "posture": "Sitting",
+        "clinical_category": "Stage 1 Hypertension",
+        "medication_status": "Post-medication",
+        "notes": "Completed 30-minute light walk 1 hour prior"
+      }
+    ],
+    "blood_glucose": [
+      {
+        "measured_at": "2026-10-12 07:30:00",
+        "value": 142.0,
+        "unit": "mg/dL",
+        "meal_context": "fasting",
+        "target_range": "70-130 mg/dL",
+        "status": "elevated",
+        "medication_status": "Pre-breakfast, fasting overnight (10 hours)",
+        "notes": "Late dinner the preceding night (pasta)"
+      },
+      {
+        "measured_at": "2026-10-11 21:15:00",
+        "value": 158.0,
+        "unit": "mg/dL",
+        "meal_context": "post_meal",
+        "target_range": "< 180 mg/dL",
+        "status": "in_target",
+        "medication_status": "2 hours post-dinner",
+        "notes": "Grilled chicken, vegetables, and brown rice"
+      },
+      {
+        "measured_at": "2026-10-11 07:45:00",
+        "value": 128.0,
+        "unit": "mg/dL",
+        "meal_context": "fasting",
+        "target_range": "70-130 mg/dL",
+        "status": "in_target",
+        "medication_status": "Fasting overnight (9 hours)",
+        "notes": "Good sleep, fasting reading within target"
+      },
+      {
+        "measured_at": "2026-10-10 13:30:00",
+        "value": 148.0,
+        "unit": "mg/dL",
+        "meal_context": "post_meal",
+        "target_range": "< 180 mg/dL",
+        "status": "in_target",
+        "medication_status": "2 hours post-lunch",
+        "notes": "Turkey sandwich and side salad"
+      },
+      {
+        "measured_at": "2026-10-10 07:40:00",
+        "value": 134.0,
+        "unit": "mg/dL",
+        "meal_context": "fasting",
+        "target_range": "70-130 mg/dL",
+        "status": "borderline",
+        "medication_status": "Fasting overnight (8.5 hours)",
+        "notes": "Standard morning fasting test"
+      }
+    ],
+    "weight_logs": [
+      {
+        "recorded_at": "2026-10-12 07:35:00",
+        "weight_kg": 84.5,
+        "bmi": 26.67,
+        "notes": "Weighed without footwear, post-voiding"
+      },
+      {
+        "recorded_at": "2026-10-05 07:30:00",
+        "weight_kg": 85.1,
+        "bmi": 26.86,
+        "notes": "Weekly morning weigh-in"
+      },
+      {
+        "recorded_at": "2026-09-28 07:40:00",
+        "weight_kg": 85.8,
+        "bmi": 27.08,
+        "notes": "Weekly morning weigh-in"
+      }
+    ],
+    "height_logs": [
+      {
+        "recorded_at": "2026-09-15 09:00:00",
+        "height_cm": 178.0,
+        "notes": "Measured during routine clinical exam at Metro Health"
+      }
+    ]
+  },
+  "symptoms": [
+    {
+      "recorded_at": "2026-10-12 08:30:00",
+      "symptom": "Morning Tension Headache",
+      "severity": "Mild",
+      "duration": "45 minutes",
+      "associated_vital": "BP 148/92 mmHg",
+      "notes": "Bilateral tension across temples, resolved after hydration and morning coffee"
+    },
+    {
+      "recorded_at": "2026-10-08 16:00:00",
+      "symptom": "Afternoon Fatigue",
+      "severity": "Moderate",
+      "duration": "2 hours",
+      "associated_vital": "Blood Glucose 118 mg/dL",
+      "notes": "Felt lethargic following busy workday; rested 30 minutes"
+    },
+    {
+      "recorded_at": "2026-09-29 11:15:00",
+      "symptom": "Postural Lightheadedness",
+      "severity": "Mild",
+      "duration": "30 seconds",
+      "associated_vital": "Rapid standing from desk",
+      "notes": "Transient dizziness upon abrupt standing; advised to rise slowly"
+    }
+  ],
+  "laboratory_results": [
+    {
+      "test_date": "2026-09-20 09:00:00",
+      "test_name": "Hemoglobin A1c (HbA1c)",
+      "value": 6.8,
+      "unit": "%",
+      "reference_range": "< 5.7% (Normal), 5.7-6.4% (Prediabetes), >= 6.5% (Diabetes)",
+      "clinical_status": "Fair Control (Target < 7.0% for T2DM)",
+      "laboratory": "Quest Diagnostics Central Lab"
+    },
+    {
+      "test_date": "2026-09-20 09:00:00",
+      "test_name": "Fasting Plasma Glucose",
+      "value": 136.0,
+      "unit": "mg/dL",
+      "reference_range": "70 - 99 mg/dL",
+      "clinical_status": "Elevated",
+      "laboratory": "Quest Diagnostics Central Lab"
+    },
+    {
+      "test_date": "2026-09-20 09:00:00",
+      "test_name": "Total Cholesterol",
+      "value": 188.0,
+      "unit": "mg/dL",
+      "reference_range": "< 200 mg/dL",
+      "clinical_status": "Normal / At Target on Atorvastatin",
+      "laboratory": "Quest Diagnostics Central Lab"
+    },
+    {
+      "test_date": "2026-09-20 09:00:00",
+      "test_name": "LDL Cholesterol (Calculated)",
+      "value": 98.0,
+      "unit": "mg/dL",
+      "reference_range": "< 100 mg/dL (Optimal for diabetic patients)",
+      "clinical_status": "Optimal on statin therapy",
+      "laboratory": "Quest Diagnostics Central Lab"
+    },
+    {
+      "test_date": "2026-09-20 09:00:00",
+      "test_name": "HDL Cholesterol",
+      "value": 46.0,
+      "unit": "mg/dL",
+      "reference_range": "> 40 mg/dL (Male)",
+      "clinical_status": "Normal",
+      "laboratory": "Quest Diagnostics Central Lab"
+    },
+    {
+      "test_date": "2026-09-20 09:00:00",
+      "test_name": "Triglycerides",
+      "value": 170.0,
+      "unit": "mg/dL",
+      "reference_range": "< 150 mg/dL",
+      "clinical_status": "Borderline High",
+      "laboratory": "Quest Diagnostics Central Lab"
+    },
+    {
+      "test_date": "2026-09-20 09:00:00",
+      "test_name": "Serum Creatinine",
+      "value": 0.95,
+      "unit": "mg/dL",
+      "reference_range": "0.74 - 1.35 mg/dL",
+      "clinical_status": "Normal Renal Function",
+      "laboratory": "Quest Diagnostics Central Lab"
+    },
+    {
+      "test_date": "2026-09-20 09:00:00",
+      "test_name": "Estimated GFR (CKD-EPI)",
+      "value": 92.0,
+      "unit": "mL/min/1.73m2",
+      "reference_range": "> 60 mL/min/1.73m2",
+      "clinical_status": "Normal (Stage G1)",
+      "laboratory": "Quest Diagnostics Central Lab"
+    }
+  ],
+  "lifestyle_logs": {
+    "sleep": [
+      {
+        "logged_at": "2026-10-12 07:00:00",
+        "hours": 6.8,
+        "sleep_quality": "Moderate",
+        "interruptions": 1,
+        "notes": "Woke once around 3:30 AM to use bathroom, fell back asleep in 15 mins"
+      },
+      {
+        "logged_at": "2026-10-11 07:15:00",
+        "hours": 7.5,
+        "sleep_quality": "Restful",
+        "interruptions": 0,
+        "notes": "Uninterrupted sleep, felt well refreshed"
+      },
+      {
+        "logged_at": "2026-10-10 07:00:00",
+        "hours": 6.5,
+        "sleep_quality": "Restless",
+        "interruptions": 2,
+        "notes": "Mild work anxiety before bed"
+      }
+    ],
+    "mood": [
+      {
+        "logged_at": "2026-10-12 08:30:00",
+        "score": 3,
+        "score_scale": "1-5 (3 = Neutral / Fair)",
+        "notes": "Slight morning fatigue and mild headache, otherwise feeling calm"
+      },
+      {
+        "logged_at": "2026-10-11 20:45:00",
+        "score": 4,
+        "score_scale": "1-5 (4 = Good)",
+        "notes": "Enjoyed relaxed family dinner and evening walk"
+      },
+      {
+        "logged_at": "2026-10-10 18:00:00",
+        "score": 3,
+        "score_scale": "1-5 (3 = Neutral / Fair)",
+        "notes": "Moderate stress from work deadlines, eased by end of day"
+      }
+    ]
+  }
+}

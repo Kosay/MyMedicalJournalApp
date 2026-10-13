@@ -846,71 +846,15 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         return if (age in 0..150) age else null
     }
 
-    // --- Per-profile export (local file share — no internet) ---
     fun exportProfileData(context: Context, familyMember: FamilyMemberProfile?) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val json = JSONObject()
-                if (familyMember == null) {
-                    // Main user profile
-                    val info = emergencyInfo.value
-                    json.put("profile_type", "main_user")
-                    json.put("name", info?.fullName ?: "")
-                    json.put("blood_type", info?.bloodType ?: "")
-                    json.put("sex", info?.sex ?: "")
-                    json.put("chronic_conditions", info?.chronicConditions ?: "")
-                    json.put("allergies", info?.allergies ?: "")
-                    json.put("emergency_contact", info?.contactName ?: "")
-                    json.put("emergency_phone", info?.contactPhone ?: "")
-                    json.put("additional_notes", info?.additionalNotes ?: "")
-                    json.put("blood_pressure", toJsonArray(bloodPressureRecords.value.map { r ->
-                        JSONObject().put("systolic", r.systolic).put("diastolic", r.diastolic)
-                            .put("heart_rate", r.heartRate).put("timestamp", formatDate(r.timestamp)).put("notes", r.notes)
-                    }))
-                    json.put("blood_sugar", toJsonArray(bloodSugarRecords.value.map { r ->
-                        JSONObject().put("value", r.value).put("unit", r.unit).put("category", r.category)
-                            .put("timestamp", formatDate(r.timestamp)).put("notes", r.notes)
-                    }))
-                    json.put("weight", toJsonArray(weightRecords.value.map { r ->
-                        JSONObject().put("weight_kg", r.weightKg).put("timestamp", formatDate(r.timestamp)).put("notes", r.notes)
-                    }))
-                    json.put("medications", toJsonArray(medications.value.map { r ->
-                        JSONObject().put("name", r.name).put("dosage", r.dosage).put("frequency", r.frequency).put("active", r.isActive)
-                    }))
-                    json.put("lab_results", toJsonArray(labResults.value.map { r ->
-                        JSONObject().put("test", r.testName).put("value", r.value).put("unit", r.unit)
-                            .put("ref_range", r.referenceRange).put("timestamp", formatDate(r.timestamp))
-                    }))
-                    json.put("symptoms", toJsonArray(symptoms.value.map { r ->
-                        JSONObject().put("symptom", r.symptomName).put("severity", r.severity)
-                            .put("timestamp", formatDate(r.timestamp)).put("notes", r.notes)
-                    }))
-                    json.put("sleep", toJsonArray(sleepRecords.value.map { r ->
-                        JSONObject().put("hours", r.hours).put("timestamp", formatDate(r.timestamp)).put("notes", r.notes)
-                    }))
-                } else {
-                    // Family member / child profile
-                    json.put("profile_type", "family_member")
-                    json.put("name", familyMember.name)
-                    json.put("relationship", familyMember.relationship)
-                    json.put("date_of_birth", familyMember.dateOfBirth)
-                    json.put("blood_type", familyMember.bloodType)
-                    json.put("sex", familyMember.sex)
-                    json.put("height_cm", familyMember.heightCm)
-                    json.put("weight_kg", familyMember.weightKg)
-                    json.put("chronic_conditions", familyMember.chronicConditions)
-                    json.put("allergies", familyMember.allergies)
-                    json.put("emergency_contact_name", familyMember.emergencyContactName)
-                    json.put("emergency_contact_phone", familyMember.emergencyContactPhone)
-                    json.put("notes", familyMember.notes)
-                }
-                json.put("export_date", formatDate(System.currentTimeMillis()))
-                json.put("app", "My Medical Journal")
-
+                val profileId = familyMember?.id ?: 0
+                val jsonString = generateDoctorJSON(profileFilter = profileId)
                 val profileLabel = familyMember?.name?.replace(" ", "_") ?: "main"
                 val filename = "medical_export_${profileLabel}_${System.currentTimeMillis()}.json"
                 val file = File(context.cacheDir, filename)
-                file.writeText(json.toString(2))
+                file.writeText(jsonString)
 
                 val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
                 shareFile(context, uri, "application/json", "Medical data — ${familyMember?.name ?: "My Profile"}")
@@ -919,6 +863,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
     }
+
 
     fun shareFileViaWhatsApp(context: Context, familyMember: FamilyMemberProfile?) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -2028,162 +1973,370 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    private fun generateJSON(): String {
+    fun exportForDoctorJSON(context: Context, rangeOption: String = "all") {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val now = System.currentTimeMillis()
+                val json = generateDoctorJSON(profileFilter = null)
+                val filename = "DoctorExport_${System.currentTimeMillis()}.json"
+                val cacheFile = File(context.cacheDir, filename)
+                cacheFile.writeText(json)
+
+                val uri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    cacheFile
+                )
+
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "application/json"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    putExtra(Intent.EXTRA_SUBJECT, "Health Records for Doctor (JSON)")
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+
+                val chooserIntent = Intent.createChooser(intent, "Send to Doctor via...").apply {
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+
+                _lastDoctorExportTime.value = now
+                sharedPrefs.edit().putLong("last_doctor_export_time", now).apply()
+
+                withContext(Dispatchers.Main) {
+                    context.startActivity(chooserIntent)
+                }
+            } catch (e: Exception) {
+                Log.e("DoctorExport", "Error exporting JSON for doctor: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    fun evaluateClinicalTriage(
+        latestBp: BloodPressureRecord?,
+        latestSugar: BloodSugarRecord?,
+        latestWeight: Float?,
+        heightCm: Float?
+    ): JSONObject {
+        val alertObj = JSONObject()
+        val findings = JSONArray()
+        var triageLevel = "NORMAL"
+
+        latestBp?.let { bp ->
+            if (bp.systolic >= 180 || bp.diastolic >= 120) {
+                findings.put(JSONObject().apply {
+                    put("type", "HYPERTENSIVE_CRISIS")
+                    put("severity", "CRITICAL")
+                    put("message", "Immediate clinical assessment recommended: Blood pressure ${bp.systolic}/${bp.diastolic} mmHg reaches hypertensive crisis threshold (>=180/120)")
+                    put("value", "${bp.systolic}/${bp.diastolic}")
+                    put("unit", "mmHg")
+                })
+                triageLevel = "CRITICAL"
+            } else if (bp.systolic >= 140 || bp.diastolic >= 90) {
+                findings.put(JSONObject().apply {
+                    put("type", "STAGE_2_HYPERTENSION")
+                    put("severity", "WARNING")
+                    put("message", "Stage 2 Hypertension detected: Blood pressure ${bp.systolic}/${bp.diastolic} mmHg (>=140/90)")
+                    put("value", "${bp.systolic}/${bp.diastolic}")
+                    put("unit", "mmHg")
+                })
+                if (triageLevel != "CRITICAL") triageLevel = "WARNING"
+            } else if (bp.systolic < 90 || bp.diastolic < 60) {
+                findings.put(JSONObject().apply {
+                    put("type", "HYPOTENSION")
+                    put("severity", "WARNING")
+                    put("message", "Hypotension detected: Blood pressure ${bp.systolic}/${bp.diastolic} mmHg (<90/60)")
+                    put("value", "${bp.systolic}/${bp.diastolic}")
+                    put("unit", "mmHg")
+                })
+                if (triageLevel != "CRITICAL") triageLevel = "WARNING"
+            }
+
+            if (bp.heartRate > 100) {
+                findings.put(JSONObject().apply {
+                    put("type", "TACHYCARDIA")
+                    put("severity", "WARNING")
+                    put("message", "Resting heart rate elevated: ${bp.heartRate} bpm (>100)")
+                    put("value", bp.heartRate)
+                    put("unit", "bpm")
+                })
+                if (triageLevel != "CRITICAL") triageLevel = "WARNING"
+            } else if (bp.heartRate in 1..49) {
+                findings.put(JSONObject().apply {
+                    put("type", "BRADYCARDIA")
+                    put("severity", "WARNING")
+                    put("message", "Resting heart rate low: ${bp.heartRate} bpm (<50)")
+                    put("value", bp.heartRate)
+                    put("unit", "bpm")
+                })
+                if (triageLevel != "CRITICAL") triageLevel = "WARNING"
+            }
+        }
+
+        latestSugar?.let { bs ->
+            val isMmol = bs.unit.contains("mmol", ignoreCase = true)
+            val mgDlValue = if (isMmol) bs.value * 18.018f else bs.value
+            if (mgDlValue < 70f) {
+                findings.put(JSONObject().apply {
+                    put("type", "HYPOGLYCEMIA")
+                    put("severity", "CRITICAL")
+                    put("message", "Critical hypoglycemia reading: ${bs.value} ${bs.unit} (<70 mg/dL)")
+                    put("value", bs.value)
+                    put("unit", bs.unit)
+                })
+                triageLevel = "CRITICAL"
+            } else if (mgDlValue > 250f) {
+                findings.put(JSONObject().apply {
+                    put("type", "SEVERE_HYPERGLYCEMIA")
+                    put("severity", "CRITICAL")
+                    put("message", "Severe hyperglycemia reading: ${bs.value} ${bs.unit} (>250 mg/dL)")
+                    put("value", bs.value)
+                    put("unit", bs.unit)
+                })
+                triageLevel = "CRITICAL"
+            } else if (mgDlValue > 180f) {
+                findings.put(JSONObject().apply {
+                    put("type", "HYPERGLYCEMIA")
+                    put("severity", "WARNING")
+                    put("message", "Elevated blood glucose: ${bs.value} ${bs.unit} (>180 mg/dL)")
+                    put("value", bs.value)
+                    put("unit", bs.unit)
+                })
+                if (triageLevel != "CRITICAL") triageLevel = "WARNING"
+            }
+        }
+
+        alertObj.put("status", if (findings.length() > 0) "ATTENTION_REQUIRED" else "NORMAL")
+        alertObj.put("triage_level", triageLevel)
+        alertObj.put("high_priority_findings", findings)
+
+        val vitalsSummary = JSONObject()
+        latestBp?.let {
+            vitalsSummary.put("latest_blood_pressure", "${it.systolic}/${it.diastolic} mmHg")
+            vitalsSummary.put("latest_heart_rate", "${it.heartRate} bpm")
+        }
+        latestSugar?.let {
+            vitalsSummary.put("latest_blood_glucose", "${it.value} ${it.unit} (${it.category})")
+        }
+        if (latestWeight != null && latestWeight > 0f) {
+            vitalsSummary.put("latest_weight_kg", latestWeight)
+            if (heightCm != null && heightCm > 0f) {
+                val heightM = heightCm / 100f
+                val bmi = latestWeight / (heightM * heightM)
+                vitalsSummary.put("calculated_bmi", String.format(Locale.US, "%.2f", bmi).toDoubleOrNull() ?: bmi)
+            }
+        }
+        alertObj.put("recent_vitals_summary", vitalsSummary)
+        return alertObj
+    }
+
+    fun generateDoctorJSON(profileFilter: Int? = null): String {
+        val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
         val root = JSONObject()
-        val bpArr = JSONArray()
-        bloodPressureRecords.value.forEach {
-            bpArr.put(JSONObject().apply {
-                put("profileId", it.profileId)
-                put("systolic", it.systolic)
-                put("diastolic", it.diastolic)
-                put("heartRate", it.heartRate)
-                put("timestamp", it.timestamp)
-                put("notes", it.notes)
-            })
-        }
-        root.put("blood_pressure", bpArr)
+        root.put("schema_version", "2.0.0")
 
-        val wArr = JSONArray()
-        weightRecords.value.forEach {
-            wArr.put(JSONObject().apply {
-                put("profileId", it.profileId)
-                put("weightKg", it.weightKg)
-                put("timestamp", it.timestamp)
-                put("notes", it.notes)
-            })
+        val meta = JSONObject().apply {
+            put("generated_at", sdf.format(Date()))
+            put("application", "My Medical Journal")
+            put("export_purpose", "Physician Clinical Review & EHR Ingestion")
+            put("profile_scope", if (profileFilter == null) "full_family_record" else "profile_$profileFilter")
         }
-        root.put("weight", wArr)
+        root.put("export_metadata", meta)
 
+        val bpList = if (profileFilter == null) bloodPressureRecords.value else bloodPressureRecords.value.filter { it.profileId == profileFilter }
+        val sugarList = if (profileFilter == null) bloodSugarRecords.value else bloodSugarRecords.value.filter { it.profileId == profileFilter }
+        val weightList = if (profileFilter == null) weightRecords.value else weightRecords.value.filter { it.profileId == profileFilter }
+        val heightList = if (profileFilter == null) heightRecords.value else heightRecords.value.filter { it.profileId == profileFilter }
+
+        val latestBp = bpList.maxByOrNull { it.timestamp }
+        val latestSugar = sugarList.maxByOrNull { it.timestamp }
+        val latestWeight = weightList.maxByOrNull { it.timestamp }?.weightKg
+        val latestHeight = heightList.maxByOrNull { it.timestamp }?.heightCm
+
+        root.put("clinical_triage_alerts", evaluateClinicalTriage(latestBp, latestSugar, latestWeight, latestHeight))
+
+        val info = emergencyInfo.value
+        val patientObj = JSONObject().apply {
+            put("full_name", info?.fullName ?: "")
+            put("sex", info?.sex ?: "")
+            put("blood_type", info?.bloodType ?: "")
+            latestHeight?.let { put("height_cm", it) }
+            latestWeight?.let { put("weight_kg", it) }
+            if (latestWeight != null && latestHeight != null && latestHeight > 0f) {
+                val hM = latestHeight / 100f
+                val bmi = latestWeight / (hM * hM)
+                put("bmi", String.format(Locale.US, "%.2f", bmi).toDoubleOrNull() ?: bmi)
+            }
+            val chronicArr = JSONArray()
+            info?.chronicConditions?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }?.forEach {
+                chronicArr.put(it)
+            }
+            put("chronic_conditions", chronicArr)
+
+            val allergiesArr = JSONArray()
+            info?.allergies?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }?.forEach {
+                allergiesArr.put(it)
+            }
+            put("allergies", allergiesArr)
+
+            put("emergency_contact", JSONObject().apply {
+                put("name", info?.contactName ?: "")
+                put("phone", info?.contactPhone ?: "")
+            })
+            put("additional_clinical_notes", info?.additionalNotes ?: "")
+        }
+        root.put("patient_profile", patientObj)
+
+        val famArr = JSONArray()
+        familyMembers.value.forEach { fam ->
+            val famObj = JSONObject().apply {
+                put("id", fam.id)
+                put("name", fam.name)
+                put("relationship", fam.relationship)
+                put("date_of_birth", fam.dateOfBirth)
+                put("sex", fam.sex)
+                put("blood_type", fam.bloodType)
+                put("height_cm", fam.heightCm)
+                put("weight_kg", fam.weightKg)
+                val condArr = JSONArray()
+                fam.chronicConditions.split(",").map { it.trim() }.filter { it.isNotEmpty() }.forEach { condArr.put(it) }
+                put("chronic_conditions", condArr)
+                val algArr = JSONArray()
+                fam.allergies.split(",").map { it.trim() }.filter { it.isNotEmpty() }.forEach { algArr.put(it) }
+                put("allergies", algArr)
+                put("emergency_contact", JSONObject().apply {
+                    put("name", fam.emergencyContactName)
+                    put("phone", fam.emergencyContactPhone)
+                })
+                put("notes", fam.notes)
+            }
+            famArr.put(famObj)
+        }
+        root.put("family_members", famArr)
+
+        val medList = if (profileFilter == null) medications.value else medications.value.filter { it.profileId == profileFilter }
         val medArr = JSONArray()
-        medications.value.forEach {
+        medList.forEach { med ->
             medArr.put(JSONObject().apply {
-                put("profileId", it.profileId)
-                put("name", it.name)
-                put("dosage", it.dosage)
-                put("frequency", it.frequency)
-                put("isActive", it.isActive)
+                put("name", med.name)
+                put("dosage", med.dosage)
+                put("frequency", med.frequency)
+                put("status", if (med.isActive) "active" else "stopped")
+                put("start_date", sdf.format(Date(med.timestamp)))
+                put("profile_id", med.profileId)
             })
         }
         root.put("medications", medArr)
 
-        val sArr = JSONArray()
-        symptoms.value.forEach {
-            sArr.put(JSONObject().apply {
-                put("profileId", it.profileId)
-                put("symptomName", it.symptomName)
-                put("severity", it.severity)
-                put("timestamp", it.timestamp)
-                put("notes", it.notes)
+        val vitalsObj = JSONObject()
+        val bpArr = JSONArray()
+        bpList.forEach { bp ->
+            bpArr.put(JSONObject().apply {
+                put("measured_at", sdf.format(Date(bp.timestamp)))
+                put("systolic", bp.systolic)
+                put("diastolic", bp.diastolic)
+                put("unit", "mmHg")
+                put("heart_rate", bp.heartRate)
+                put("heart_rate_unit", "bpm")
+                put("notes", bp.notes)
+                put("profile_id", bp.profileId)
             })
         }
-        root.put("symptoms", sArr)
-
-        val slArr = JSONArray()
-        sleepRecords.value.forEach {
-            slArr.put(JSONObject().apply {
-                put("profileId", it.profileId)
-                put("hours", it.hours)
-                put("timestamp", it.timestamp)
-                put("notes", it.notes)
-            })
-        }
-        root.put("sleep", slArr)
+        vitalsObj.put("blood_pressure", bpArr)
 
         val sugarArr = JSONArray()
-        bloodSugarRecords.value.forEach {
+        sugarList.forEach { bs ->
             sugarArr.put(JSONObject().apply {
-                put("profileId", it.profileId)
-                put("value", it.value)
-                put("unit", it.unit)
-                put("category", it.category)
-                put("timestamp", it.timestamp)
-                put("notes", it.notes)
+                put("measured_at", sdf.format(Date(bs.timestamp)))
+                put("value", bs.value)
+                put("unit", bs.unit)
+                put("meal_context", bs.category.lowercase().replace(" ", "_"))
+                put("notes", bs.notes)
+                put("profile_id", bs.profileId)
             })
         }
-        root.put("blood_sugar", sugarArr)
+        vitalsObj.put("blood_glucose", sugarArr)
 
+        val wArr = JSONArray()
+        weightList.forEach { w ->
+            wArr.put(JSONObject().apply {
+                put("recorded_at", sdf.format(Date(w.timestamp)))
+                put("weight_kg", w.weightKg)
+                put("notes", w.notes)
+                put("profile_id", w.profileId)
+            })
+        }
+        vitalsObj.put("weight_logs", wArr)
+
+        val hArr = JSONArray()
+        heightList.forEach { h ->
+            hArr.put(JSONObject().apply {
+                put("recorded_at", sdf.format(Date(h.timestamp)))
+                put("height_cm", h.heightCm)
+                put("notes", h.notes)
+                put("profile_id", h.profileId)
+            })
+        }
+        vitalsObj.put("height_logs", hArr)
+        root.put("vital_signs", vitalsObj)
+
+        val sympList = if (profileFilter == null) symptoms.value else symptoms.value.filter { it.profileId == profileFilter }
+        val sympArr = JSONArray()
+        sympList.forEach { sym ->
+            sympArr.put(JSONObject().apply {
+                put("recorded_at", sdf.format(Date(sym.timestamp)))
+                put("symptom", sym.symptomName)
+                put("severity", sym.severity)
+                put("notes", sym.notes)
+                put("profile_id", sym.profileId)
+            })
+        }
+        root.put("symptoms", sympArr)
+
+        val labsList = if (profileFilter == null) labResults.value else labResults.value.filter { it.profileId == profileFilter }
         val labArr = JSONArray()
-        labResults.value.forEach {
+        labsList.forEach { lab ->
             labArr.put(JSONObject().apply {
-                put("profileId", it.profileId)
-                put("testName", it.testName)
-                put("value", it.value)
-                put("unit", it.unit)
-                put("referenceRange", it.referenceRange)
-                put("timestamp", it.timestamp)
+                put("test_date", sdf.format(Date(lab.timestamp)))
+                put("test_name", lab.testName)
+                put("value", lab.value)
+                put("unit", lab.unit)
+                put("reference_range", lab.referenceRange)
+                put("profile_id", lab.profileId)
             })
         }
-        root.put("lab_results", labArr)
+        root.put("laboratory_results", labArr)
 
-        emergencyInfo.value?.let { info ->
-            root.put("emergency_info", JSONObject().apply {
-                put("fullName", info.fullName)
-                put("bloodType", info.bloodType)
-                put("chronicConditions", info.chronicConditions)
-                put("allergies", info.allergies)
-                put("contactName", info.contactName)
-                put("contactPhone", info.contactPhone)
-                put("additionalNotes", info.additionalNotes)
-                put("sex", info.sex)
-                put("numberOfChildren", info.numberOfChildren)
+        val lifeObj = JSONObject()
+        val slList = if (profileFilter == null) sleepRecords.value else sleepRecords.value.filter { it.profileId == profileFilter }
+        val slArr = JSONArray()
+        slList.forEach { sl ->
+            slArr.put(JSONObject().apply {
+                put("logged_at", sdf.format(Date(sl.timestamp)))
+                put("hours", sl.hours)
+                put("notes", sl.notes)
+                put("profile_id", sl.profileId)
             })
         }
+        lifeObj.put("sleep", slArr)
 
+        val moodList = if (profileFilter == null) moodRecords.value else moodRecords.value.filter { it.profileId == profileFilter }
         val moodArr = JSONArray()
-        moodRecords.value.forEach {
+        moodList.forEach { m ->
             moodArr.put(JSONObject().apply {
-                put("profileId", it.profileId)
-                put("score", it.score)
-                put("notes", it.notes)
-                put("timestamp", it.timestamp)
+                put("logged_at", sdf.format(Date(m.timestamp)))
+                put("score", m.score)
+                put("notes", m.notes)
+                put("profile_id", m.profileId)
             })
         }
-        root.put("mood_records", moodArr)
-
-        val familyArr = JSONArray()
-        familyMembers.value.forEach {
-            familyArr.put(JSONObject().apply {
-                put("id", it.id)
-                put("name", it.name)
-                put("relationship", it.relationship)
-                put("dateOfBirth", it.dateOfBirth)
-                put("bloodType", it.bloodType)
-                put("notes", it.notes)
-                put("sex", it.sex)
-                put("chronicConditions", it.chronicConditions)
-                put("allergies", it.allergies)
-                put("emergencyContactName", it.emergencyContactName)
-                put("emergencyContactPhone", it.emergencyContactPhone)
-                put("heightCm", it.heightCm)
-                put("weightKg", it.weightKg)
-            })
-        }
-        root.put("family_members", familyArr)
-
-        val heightArr = JSONArray()
-        heightRecords.value.forEach {
-            heightArr.put(JSONObject().apply {
-                put("profileId", it.profileId)
-                put("heightCm", it.heightCm)
-                put("timestamp", it.timestamp)
-                put("notes", it.notes)
-            })
-        }
-        root.put("height_records", heightArr)
-
-        val periodArr = JSONArray()
-        periodRecords.value.forEach {
-            periodArr.put(JSONObject().apply {
-                put("profileId", it.profileId)
-                put("startTimestamp", it.startTimestamp)
-                put("endTimestamp", it.endTimestamp)
-                put("flow", it.flow)
-                put("notes", it.notes)
-            })
-        }
-        root.put("period_records", periodArr)
+        lifeObj.put("mood", moodArr)
+        root.put("lifestyle_logs", lifeObj)
 
         return root.toString(2)
+    }
+
+    private fun generateJSON(): String {
+        return generateDoctorJSON(null)
     }
 
     private fun generateTXT(): String {
@@ -2683,22 +2836,43 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private fun parseTimestampValue(obj: JSONObject, vararg keys: String): Long {
+        for (k in keys) {
+            if (obj.has(k) && !obj.isNull(k)) {
+                val v = obj.get(k)
+                if (v is Number) return v.toLong()
+                val s = v.toString().trim()
+                val longVal = s.toLongOrNull()
+                if (longVal != null) return longVal
+                try {
+                    val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                    val parsed = sdf.parse(s)
+                    if (parsed != null) return parsed.time
+                } catch (e: Exception) {}
+            }
+        }
+        return System.currentTimeMillis()
+    }
+
     private suspend fun restoreFromJSON(jsonStr: String): Boolean = withContext(Dispatchers.IO) {
         try {
             val root = JSONObject(jsonStr)
-            
+            val vitals = root.optJSONObject("vital_signs")
+            val lifestyle = root.optJSONObject("lifestyle_logs")
+
             // 1. Blood Pressure
-            root.optJSONArray("blood_pressure")?.let { arr ->
+            val bpArr = vitals?.optJSONArray("blood_pressure") ?: root.optJSONArray("blood_pressure")
+            bpArr?.let { arr ->
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
                     repository.insertBloodPressure(
                         BloodPressureRecord(
                             id = obj.optInt("id", 0),
-                            profileId = obj.optInt("profileId", 0),
+                            profileId = obj.optInt("profile_id", obj.optInt("profileId", 0)),
                             systolic = obj.optInt("systolic"),
                             diastolic = obj.optInt("diastolic"),
-                            heartRate = obj.optInt("heartRate"),
-                            timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
+                            heartRate = if (obj.has("heart_rate")) obj.optInt("heart_rate") else obj.optInt("heartRate"),
+                            timestamp = parseTimestampValue(obj, "measured_at", "timestamp"),
                             notes = obj.optString("notes")
                         )
                     )
@@ -2706,15 +2880,17 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
             }
 
             // 2. Weight
-            root.optJSONArray("weight")?.let { arr ->
+            val weightArr = vitals?.optJSONArray("weight_logs") ?: root.optJSONArray("weight")
+            weightArr?.let { arr ->
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
+                    val wt = if (obj.has("weight_kg")) obj.optDouble("weight_kg") else obj.optDouble("weightKg")
                     repository.insertWeight(
                         WeightRecord(
                             id = obj.optInt("id", 0),
-                            profileId = obj.optInt("profileId", 0),
-                            weightKg = obj.optDouble("weightKg").toFloat(),
-                            timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
+                            profileId = obj.optInt("profile_id", obj.optInt("profileId", 0)),
+                            weightKg = wt.toFloat(),
+                            timestamp = parseTimestampValue(obj, "recorded_at", "timestamp"),
                             notes = obj.optString("notes")
                         )
                     )
@@ -2725,14 +2901,20 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
             root.optJSONArray("medications")?.let { arr ->
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
+                    val active = if (obj.has("status")) {
+                        obj.optString("status").equals("active", ignoreCase = true)
+                    } else {
+                        obj.optBoolean("isActive", true)
+                    }
                     repository.insertMedication(
                         MedicationRecord(
                             id = obj.optInt("id", 0),
-                            profileId = obj.optInt("profileId", 0),
+                            profileId = obj.optInt("profile_id", obj.optInt("profileId", 0)),
                             name = obj.optString("name"),
                             dosage = obj.optString("dosage"),
                             frequency = obj.optString("frequency"),
-                            isActive = obj.optBoolean("isActive", true)
+                            isActive = active,
+                            timestamp = parseTimestampValue(obj, "start_date", "timestamp")
                         )
                     )
                 }
@@ -2742,13 +2924,14 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
             root.optJSONArray("symptoms")?.let { arr ->
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
+                    val name = if (obj.has("symptom")) obj.optString("symptom") else obj.optString("symptomName")
                     repository.insertSymptom(
                         SymptomRecord(
                             id = obj.optInt("id", 0),
-                            profileId = obj.optInt("profileId", 0),
-                            symptomName = obj.optString("symptomName"),
-                            severity = obj.optString("severity"),
-                            timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
+                            profileId = obj.optInt("profile_id", obj.optInt("profileId", 0)),
+                            symptomName = name,
+                            severity = obj.optString("severity", "Mild"),
+                            timestamp = parseTimestampValue(obj, "recorded_at", "timestamp"),
                             notes = obj.optString("notes")
                         )
                     )
@@ -2756,15 +2939,16 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
             }
 
             // 5. Sleep
-            root.optJSONArray("sleep")?.let { arr ->
+            val sleepArr = lifestyle?.optJSONArray("sleep") ?: root.optJSONArray("sleep")
+            sleepArr?.let { arr ->
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
                     repository.insertSleep(
                         SleepRecord(
                             id = obj.optInt("id", 0),
-                            profileId = obj.optInt("profileId", 0),
+                            profileId = obj.optInt("profile_id", obj.optInt("profileId", 0)),
                             hours = obj.optDouble("hours").toFloat(),
-                            timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
+                            timestamp = parseTimestampValue(obj, "logged_at", "timestamp"),
                             notes = obj.optString("notes")
                         )
                     )
@@ -2772,17 +2956,19 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
             }
 
             // 6. Blood Sugar
-            root.optJSONArray("blood_sugar")?.let { arr ->
+            val sugarArr = vitals?.optJSONArray("blood_glucose") ?: root.optJSONArray("blood_sugar")
+            sugarArr?.let { arr ->
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
+                    val cat = if (obj.has("meal_context")) obj.optString("meal_context") else obj.optString("category", "Fasting")
                     repository.insertBloodSugar(
                         BloodSugarRecord(
                             id = obj.optInt("id", 0),
-                            profileId = obj.optInt("profileId", 0),
+                            profileId = obj.optInt("profile_id", obj.optInt("profileId", 0)),
                             value = obj.optDouble("value").toFloat(),
                             unit = obj.optString("unit", "mg/dL"),
-                            category = obj.optString("category", "Fasting"),
-                            timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
+                            category = cat,
+                            timestamp = parseTimestampValue(obj, "measured_at", "timestamp"),
                             notes = obj.optString("notes")
                         )
                     )
@@ -2790,51 +2976,81 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
             }
 
             // 7. Lab Results
-            root.optJSONArray("lab_results")?.let { arr ->
+            val labArr = root.optJSONArray("laboratory_results") ?: root.optJSONArray("lab_results")
+            labArr?.let { arr ->
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
+                    val testName = if (obj.has("test_name")) obj.optString("test_name") else obj.optString("testName")
+                    val refRange = if (obj.has("reference_range")) obj.optString("reference_range") else obj.optString("referenceRange")
                     repository.insertLabResult(
                         LabResultRecord(
                             id = obj.optInt("id", 0),
-                            profileId = obj.optInt("profileId", 0),
-                            testName = obj.optString("testName"),
+                            profileId = obj.optInt("profile_id", obj.optInt("profileId", 0)),
+                            testName = testName,
                             value = obj.optDouble("value").toFloat(),
                             unit = obj.optString("unit"),
-                            referenceRange = obj.optString("referenceRange"),
-                            timestamp = obj.optLong("timestamp", System.currentTimeMillis())
+                            referenceRange = refRange,
+                            timestamp = parseTimestampValue(obj, "test_date", "timestamp")
                         )
                     )
                 }
             }
 
-            // 8. Emergency Info
-            root.optJSONObject("emergency_info")?.let { obj ->
+            // 8. Emergency Info / Patient Profile
+            val patientProfile = root.optJSONObject("patient_profile")
+            val emergencyInfoObj = root.optJSONObject("emergency_info")
+            if (patientProfile != null) {
+                val chronicConditionsStr = when (val c = patientProfile.opt("chronic_conditions")) {
+                    is JSONArray -> (0 until c.length()).joinToString(", ") { c.getString(it) }
+                    else -> patientProfile.optString("chronic_conditions", "")
+                }
+                val allergiesStr = when (val a = patientProfile.opt("allergies")) {
+                    is JSONArray -> (0 until a.length()).joinToString(", ") { a.getString(it) }
+                    else -> patientProfile.optString("allergies", "")
+                }
+                val contactObj = patientProfile.optJSONObject("emergency_contact")
                 repository.insertEmergencyInfo(
                     EmergencyInfo(
-                        id = obj.optInt("id", 1),
-                        fullName = obj.optString("fullName"),
-                        bloodType = obj.optString("bloodType"),
-                        allergies = obj.optString("allergies"),
-                        chronicConditions = obj.optString("chronicConditions"),
-                        contactName = obj.optString("contactName"),
-                        contactPhone = obj.optString("contactPhone"),
-                        additionalNotes = obj.optString("additionalNotes"),
-                        sex = obj.optString("sex"),
-                        numberOfChildren = obj.optInt("numberOfChildren", 0)
+                        id = 1,
+                        fullName = patientProfile.optString("full_name", patientProfile.optString("fullName")),
+                        bloodType = patientProfile.optString("blood_type", patientProfile.optString("bloodType")),
+                        allergies = allergiesStr,
+                        chronicConditions = chronicConditionsStr,
+                        contactName = contactObj?.optString("name") ?: patientProfile.optString("contactName"),
+                        contactPhone = contactObj?.optString("phone") ?: patientProfile.optString("contactPhone"),
+                        additionalNotes = patientProfile.optString("additional_clinical_notes", patientProfile.optString("additionalNotes")),
+                        sex = patientProfile.optString("sex"),
+                        numberOfChildren = patientProfile.optInt("numberOfChildren", 0)
+                    )
+                )
+            } else if (emergencyInfoObj != null) {
+                repository.insertEmergencyInfo(
+                    EmergencyInfo(
+                        id = emergencyInfoObj.optInt("id", 1),
+                        fullName = emergencyInfoObj.optString("fullName"),
+                        bloodType = emergencyInfoObj.optString("bloodType"),
+                        allergies = emergencyInfoObj.optString("allergies"),
+                        chronicConditions = emergencyInfoObj.optString("chronicConditions"),
+                        contactName = emergencyInfoObj.optString("contactName"),
+                        contactPhone = emergencyInfoObj.optString("contactPhone"),
+                        additionalNotes = emergencyInfoObj.optString("additionalNotes"),
+                        sex = emergencyInfoObj.optString("sex"),
+                        numberOfChildren = emergencyInfoObj.optInt("numberOfChildren", 0)
                     )
                 )
             }
 
             // 9. Mood Records
-            root.optJSONArray("mood_records")?.let { arr ->
+            val moodArr = lifestyle?.optJSONArray("mood") ?: root.optJSONArray("mood_records")
+            moodArr?.let { arr ->
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
                     repository.insertMood(
                         MoodRecord(
-                            profileId = obj.optInt("profileId", 0),
+                            profileId = obj.optInt("profile_id", obj.optInt("profileId", 0)),
                             score = obj.optInt("score", 3),
                             notes = obj.optString("notes"),
-                            timestamp = obj.optLong("timestamp", System.currentTimeMillis())
+                            timestamp = parseTimestampValue(obj, "logged_at", "timestamp")
                         )
                     )
                 }
@@ -2844,36 +3060,52 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
             root.optJSONArray("family_members")?.let { arr ->
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
+                    val famChronic = when (val c = obj.opt("chronic_conditions")) {
+                        is JSONArray -> (0 until c.length()).joinToString(", ") { c.getString(it) }
+                        else -> obj.optString("chronicConditions", obj.optString("chronic_conditions", ""))
+                    }
+                    val famAllergies = when (val a = obj.opt("allergies")) {
+                        is JSONArray -> (0 until a.length()).joinToString(", ") { a.getString(it) }
+                        else -> obj.optString("allergies", "")
+                    }
+                    val famContact = obj.optJSONObject("emergency_contact")
+                    val contactName = famContact?.optString("name") ?: obj.optString("emergencyContactName")
+                    val contactPhone = famContact?.optString("phone") ?: obj.optString("emergencyContactPhone")
+                    val h = if (obj.has("height_cm")) obj.optDouble("height_cm", 0.0) else obj.optDouble("heightCm", 0.0)
+                    val w = if (obj.has("weight_kg")) obj.optDouble("weight_kg", 0.0) else obj.optDouble("weightKg", 0.0)
+
                     repository.insertFamilyMember(
                         FamilyMemberProfile(
                             id = obj.optInt("id", 0),
                             name = obj.optString("name"),
                             relationship = obj.optString("relationship"),
-                            dateOfBirth = obj.optString("dateOfBirth"),
-                            bloodType = obj.optString("bloodType"),
+                            dateOfBirth = if (obj.has("date_of_birth")) obj.optString("date_of_birth") else obj.optString("dateOfBirth"),
+                            bloodType = if (obj.has("blood_type")) obj.optString("blood_type") else obj.optString("bloodType"),
                             notes = obj.optString("notes"),
                             sex = obj.optString("sex"),
-                            chronicConditions = obj.optString("chronicConditions"),
-                            allergies = obj.optString("allergies"),
-                            emergencyContactName = obj.optString("emergencyContactName"),
-                            emergencyContactPhone = obj.optString("emergencyContactPhone"),
-                            heightCm = obj.optDouble("heightCm", 0.0).toFloat(),
-                            weightKg = obj.optDouble("weightKg", 0.0).toFloat()
+                            chronicConditions = famChronic,
+                            allergies = famAllergies,
+                            emergencyContactName = contactName,
+                            emergencyContactPhone = contactPhone,
+                            heightCm = h.toFloat(),
+                            weightKg = w.toFloat()
                         )
                     )
                 }
             }
 
             // 11. Height records (child growth)
-            root.optJSONArray("height_records")?.let { arr ->
+            val heightArr = vitals?.optJSONArray("height_logs") ?: root.optJSONArray("height_records")
+            heightArr?.let { arr ->
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
+                    val h = if (obj.has("height_cm")) obj.optDouble("height_cm") else obj.optDouble("heightCm")
                     repository.insertHeight(
                         HeightRecord(
                             id = obj.optInt("id", 0),
-                            profileId = obj.optInt("profileId", 0),
-                            heightCm = obj.optDouble("heightCm").toFloat(),
-                            timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
+                            profileId = obj.optInt("profile_id", obj.optInt("profileId", 0)),
+                            heightCm = h.toFloat(),
+                            timestamp = parseTimestampValue(obj, "recorded_at", "timestamp"),
                             notes = obj.optString("notes")
                         )
                     )
@@ -2887,8 +3119,8 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                     repository.insertPeriod(
                         PeriodRecord(
                             id = obj.optInt("id", 0),
-                            profileId = obj.optInt("profileId", 0),
-                            startTimestamp = obj.optLong("startTimestamp", System.currentTimeMillis()),
+                            profileId = obj.optInt("profile_id", obj.optInt("profileId", 0)),
+                            startTimestamp = parseTimestampValue(obj, "startTimestamp"),
                             endTimestamp = obj.optLong("endTimestamp", 0L),
                             flow = obj.optString("flow", "Medium"),
                             notes = obj.optString("notes")
