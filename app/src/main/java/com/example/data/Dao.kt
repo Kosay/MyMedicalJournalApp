@@ -145,6 +145,19 @@ interface HealthDao {
     @Delete
     suspend fun deleteHeight(record: HeightRecord)
 
+    // --- Vaccinations (child growth) ---
+    @Query("SELECT * FROM vaccination_records ORDER BY administeredDate DESC, scheduledDate ASC")
+    fun getAllVaccinations(): Flow<List<VaccinationRecord>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertVaccination(record: VaccinationRecord)
+
+    @Update
+    suspend fun updateVaccination(record: VaccinationRecord)
+
+    @Delete
+    suspend fun deleteVaccination(record: VaccinationRecord)
+
     // --- Period tracking ---
     @Query("SELECT * FROM period_records ORDER BY startTimestamp DESC")
     fun getAllPeriods(): Flow<List<PeriodRecord>>

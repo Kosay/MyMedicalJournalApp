@@ -25,9 +25,10 @@ import kotlinx.coroutines.CoroutineScope
         FamilyMemberProfile::class,
         AppointmentRecord::class,
         HeightRecord::class,
-        PeriodRecord::class
+        PeriodRecord::class,
+        VaccinationRecord::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -115,6 +116,23 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE medications ADD COLUMN reminderTimeMinutes INTEGER")
+                db.execSQL("ALTER TABLE medications ADD COLUMN reminderEnabled INTEGER NOT NULL DEFAULT 1")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS vaccination_records (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "vaccineName TEXT NOT NULL, " +
+                    "doseNumber INTEGER NOT NULL DEFAULT 1, " +
+                    "scheduledDate INTEGER, " +
+                    "administeredDate INTEGER, " +
+                    "notes TEXT NOT NULL DEFAULT '', " +
+                    "profileId INTEGER NOT NULL DEFAULT 0)"
+                )
+            }
+        }
+
         fun getDatabase(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -122,7 +140,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "medical_journal_database"
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance

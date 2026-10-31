@@ -1537,11 +1537,25 @@ fun MedicationDetailView(viewModel: HealthViewModel, lang: String) {
     var dosageStr by remember { mutableStateOf("") }
     var freqStr by remember { mutableStateOf("") }
     var isActiveState by remember { mutableStateOf(true) }
+    var reminderMinutes by remember { mutableStateOf<Int?>(null) }
+    val dialogContext = LocalContext.current
+
+    fun formatReminderTime(minutes: Int?): String {
+        if (minutes == null) return ""
+        val h = minutes / 60
+        val m = minutes % 60
+        val cal = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, h)
+            set(java.util.Calendar.MINUTE, m)
+        }
+        return java.text.SimpleDateFormat("hh:mm a", Locale.getDefault()).format(cal.time)
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Button(
             onClick = {
                 editingRecord = null; nameStr = ""; dosageStr = ""; freqStr = ""; isActiveState = true
+                reminderMinutes = null
                 showDialog = true
             },
             modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -1571,7 +1585,13 @@ fun MedicationDetailView(viewModel: HealthViewModel, lang: String) {
                                 val activeColor = if (record.isActive) HighlightTeal else WarningYellow
                                 Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(activeColor))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text(if (record.isActive) "Active" else "Inactive", fontSize = 11.sp, color = activeColor, fontWeight = FontWeight.Bold)
+                                Text(if (record.isActive) trans("active") else trans("inactive"), fontSize = 11.sp, color = activeColor, fontWeight = FontWeight.Bold)
+                                if (record.reminderTimeMinutes != null && record.reminderEnabled) {
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Icon(Icons.Default.Alarm, null, tint = HighlightTeal, modifier = Modifier.size(12.dp))
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                    Text(formatReminderTime(record.reminderTimeMinutes), fontSize = 11.sp, color = HighlightTeal)
+                                }
                             }
                         }
                         Row {
@@ -1579,6 +1599,7 @@ fun MedicationDetailView(viewModel: HealthViewModel, lang: String) {
                                 editingRecord = record
                                 nameStr = record.name; dosageStr = record.dosage
                                 freqStr = record.frequency; isActiveState = record.isActive
+                                reminderMinutes = record.reminderTimeMinutes
                                 showDialog = true
                             }) {
                                 Icon(Icons.Default.Edit, contentDescription = "Edit", tint = HighlightTeal)
@@ -1607,7 +1628,34 @@ fun MedicationDetailView(viewModel: HealthViewModel, lang: String) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Switch(checked = isActiveState, onCheckedChange = { isActiveState = it }, colors = SwitchDefaults.colors(checkedThumbColor = HighlightTeal, checkedTrackColor = HighlightTeal.copy(alpha = 0.4f)))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(if (isActiveState) "Active" else "Inactive", fontSize = 13.sp, color = if (isActiveState) HighlightTeal else WarningYellow)
+                        Text(if (isActiveState) trans("active") else trans("inactive"), fontSize = 13.sp, color = if (isActiveState) HighlightTeal else WarningYellow)
+                    }
+                    Text(trans("reminder_time_label"), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedButton(
+                            onClick = {
+                                val cal = java.util.Calendar.getInstance()
+                                reminderMinutes?.let {
+                                    cal.set(java.util.Calendar.HOUR_OF_DAY, it / 60)
+                                    cal.set(java.util.Calendar.MINUTE, it % 60)
+                                }
+                                android.app.TimePickerDialog(
+                                    dialogContext,
+                                    { _, hour, minute -> reminderMinutes = hour * 60 + minute },
+                                    cal.get(java.util.Calendar.HOUR_OF_DAY),
+                                    cal.get(java.util.Calendar.MINUTE),
+                                    false
+                                ).show()
+                            },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = HighlightTeal)
+                        ) {
+                            Icon(Icons.Default.Alarm, null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(if (reminderMinutes != null) formatReminderTime(reminderMinutes) else trans("reminder_time_label"), fontSize = 13.sp)
+                        }
+                        if (reminderMinutes != null) {
+                            TextButton(onClick = { reminderMinutes = null }) { Text(trans("cancel")) }
+                        }
                     }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         TextButton(onClick = { showDialog = false; editingRecord = null }) { Text(trans("cancel")) }
@@ -1615,12 +1663,12 @@ fun MedicationDetailView(viewModel: HealthViewModel, lang: String) {
                         Button(onClick = {
                             val rec = editingRecord
                             if (rec != null) {
-                                viewModel.updateMedication(rec.copy(name = nameStr, dosage = dosageStr, frequency = freqStr, isActive = isActiveState))
+                                viewModel.updateMedication(rec.copy(name = nameStr, dosage = dosageStr, frequency = freqStr, isActive = isActiveState, reminderTimeMinutes = reminderMinutes))
                             } else {
-                                viewModel.addMedication(nameStr, dosageStr, freqStr, isActiveState)
+                                viewModel.addMedication(nameStr, dosageStr, freqStr, isActiveState, reminderMinutes)
                             }
                             showDialog = false; editingRecord = null
-                            nameStr = ""; dosageStr = ""; freqStr = ""
+                            nameStr = ""; dosageStr = ""; freqStr = ""; reminderMinutes = null
                         }) {
                             Text(if (editingRecord != null) trans("update") else trans("save"))
                         }

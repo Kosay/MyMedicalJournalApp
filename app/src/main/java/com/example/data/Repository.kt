@@ -73,6 +73,12 @@ class HealthRepository(private val dao: HealthDao) {
     suspend fun insertHeight(record: HeightRecord) = dao.insertHeight(record)
     suspend fun deleteHeight(record: HeightRecord) = dao.deleteHeight(record)
 
+    // --- Vaccinations (child growth) ---
+    val allVaccinations: Flow<List<VaccinationRecord>> = dao.getAllVaccinations()
+    suspend fun insertVaccination(record: VaccinationRecord) = dao.insertVaccination(record)
+    suspend fun updateVaccination(record: VaccinationRecord) = dao.updateVaccination(record)
+    suspend fun deleteVaccination(record: VaccinationRecord) = dao.deleteVaccination(record)
+
     // --- Period tracking ---
     val allPeriods: Flow<List<PeriodRecord>> = dao.getAllPeriods()
     suspend fun insertPeriod(record: PeriodRecord) = dao.insertPeriod(record)

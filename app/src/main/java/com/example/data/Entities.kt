@@ -31,7 +31,9 @@ data class MedicationRecord(
     val frequency: String,
     val isActive: Boolean = true,
     val timestamp: Long = System.currentTimeMillis(),
-    val profileId: Int = 0
+    val profileId: Int = 0,
+    val reminderTimeMinutes: Int? = null, // minutes since midnight; null = no custom reminder
+    val reminderEnabled: Boolean = true
 )
 
 @Entity(tableName = "symptoms")
@@ -145,6 +147,17 @@ data class HeightRecord(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val heightCm: Float,
     val timestamp: Long,
+    val notes: String = "",
+    val profileId: Int = 0
+)
+
+@Entity(tableName = "vaccination_records")
+data class VaccinationRecord(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val vaccineName: String,
+    val doseNumber: Int = 1,
+    val scheduledDate: Long? = null,
+    val administeredDate: Long? = null, // null = due/not yet given
     val notes: String = "",
     val profileId: Int = 0
 )

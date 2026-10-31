@@ -188,8 +188,12 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
             )
     }
 
+    // Runs every 15 minutes (WorkManager's minimum periodic interval) and checks the live
+    // medication list each time for reminders due in the current window — this means per-
+    // medication custom times just work without any per-medication job bookkeeping on
+    // add/edit/delete; medications without a custom time keep the old once-daily default.
     fun scheduleMedicationReminder() {
-        val request = PeriodicWorkRequestBuilder<MedicationReminderWorker>(1, TimeUnit.DAYS)
+        val request = PeriodicWorkRequestBuilder<MedicationReminderWorker>(15, TimeUnit.MINUTES)
             .build()
         WorkManager.getInstance(getApplication())
             .enqueueUniquePeriodicWork(
@@ -456,7 +460,10 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun addMedication(name: String, dosage: String, frequency: String, isActive: Boolean) {
+    fun addMedication(
+        name: String, dosage: String, frequency: String, isActive: Boolean,
+        reminderTimeMinutes: Int? = null, reminderEnabled: Boolean = true
+    ) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertMedication(
                 MedicationRecord(
@@ -464,7 +471,9 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                     name = name,
                     dosage = dosage,
                     frequency = frequency,
-                    isActive = isActive
+                    isActive = isActive,
+                    reminderTimeMinutes = reminderTimeMinutes,
+                    reminderEnabled = reminderEnabled
                 )
             )
         }
