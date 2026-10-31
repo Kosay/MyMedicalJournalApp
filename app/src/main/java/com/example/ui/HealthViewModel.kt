@@ -1176,6 +1176,37 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // --- Share with AI (no API key needed — hands a readable summary to the share sheet) ---
+    fun shareWithAI(context: Context, lang: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val profileName = if (_activeProfileId.value == 0) {
+                    LocalStrings.get("my_profile", lang)
+                } else {
+                    familyMembers.value.firstOrNull { it.id == _activeProfileId.value }?.name ?: ""
+                }
+                val summary = generateContextSummary()
+                val header = "My Medical Journal — ${LocalStrings.get("share_with_ai_title", lang)}" +
+                    (if (profileName.isNotEmpty()) " ($profileName)" else "") +
+                    "\n${formatDate(System.currentTimeMillis())}\n\n"
+                val body = if (summary.isBlank()) {
+                    header + LocalStrings.get("no_records", lang)
+                } else {
+                    header + summary
+                }
+
+                val filename = "health_summary_${System.currentTimeMillis()}.txt"
+                val file = File(context.cacheDir, filename)
+                file.writeText(body)
+
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                shareFile(context, uri, "text/plain", LocalStrings.get("share_with_ai_title", lang))
+            } catch (e: Exception) {
+                Log.e("ShareWithAI", "Failed to build share-with-AI summary: ${e.localizedMessage}")
+            }
+        }
+    }
+
     // --- Weekly AI Health Narrative ---
     fun generateWeeklyNarrative() {
         var key = _apiKey.value

@@ -349,7 +349,10 @@ object LocalStrings {
             "corr_all_three" to "Sleep + Smoking + Activity",
             "blood_sugar_chart_label" to "Blood Sugar (%1)",
             "weight_chart_label" to "Weight (kg)",
-            "sleep_chart_label" to "Sleep Duration (hours)"
+            "sleep_chart_label" to "Sleep Duration (hours)",
+            "ai_powered_by" to "Assistant Powered By %1",
+            "ai_default_title" to "Health GPT Assistant",
+            "ai_sample_prompts_intro" to "Ask anything about your health records, metrics, trend indicators or suggest health tips.\n\nSample Prompts:\n• \"What does my latest Blood Pressure reading indicate?\"\n• \"What is my dynamic BMI and how can I bring it to normal range?\"\n• \"Analyze my lipid logs (cholesterol & triglycerides).\""
         ),
         "ar" to mapOf(
             "dashboard" to "لوحة البيانات",
@@ -698,7 +701,10 @@ object LocalStrings {
             "corr_all_three" to "النوم + التدخين + النشاط",
             "blood_sugar_chart_label" to "سكر الدم (%1)",
             "weight_chart_label" to "الوزن (كغ)",
-            "sleep_chart_label" to "مدة النوم (ساعات)"
+            "sleep_chart_label" to "مدة النوم (ساعات)",
+            "ai_powered_by" to "المساعد يعمل بواسطة %1",
+            "ai_default_title" to "المساعد الصحي بالذكاء الاصطناعي",
+            "ai_sample_prompts_intro" to "اسأل أي شيء عن سجلاتك الصحية، المؤشرات، اتجاهات القياسات، أو اطلب نصائح صحية.\n\nأمثلة على الأسئلة:\n• \"ماذا تعني قراءة ضغط دمي الأخيرة؟\"\n• \"ما هو مؤشر كتلة جسمي وكيف أعيده للمعدل الطبيعي؟\"\n• \"حلل سجلات الدهون لدي (الكوليسترول والدهون الثلاثية).\""
         )
     )
 

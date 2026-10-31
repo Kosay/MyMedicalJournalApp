@@ -3771,8 +3771,34 @@ fun AIHealthAssistantView(viewModel: HealthViewModel, lang: String) {
 
     var userQueryInput by remember { mutableStateOf("") }
     var showWeekly by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        // Prominent, no-setup alternative: share a readable summary to any AI app the user
+        // already has installed (ChatGPT, Gemini, etc.) — no API key required.
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = HighlightTeal.copy(alpha = 0.12f)),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(trans("share_with_ai_title"), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = HighlightTeal)
+                Text(trans("share_with_ai_description"), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Button(
+                    onClick = { viewModel.shareWithAI(context, lang) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
+                ) {
+                    Icon(Icons.Default.Share, null, modifier = Modifier.size(16.dp), tint = SlateDarkBg)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(trans("share_with_ai_title"), color = SlateDarkBg, fontWeight = FontWeight.Bold)
+                }
+                Text(trans("ai_share_explainer"), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
         // Weekly summary toggle row
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(
@@ -3833,17 +3859,13 @@ fun AIHealthAssistantView(viewModel: HealthViewModel, lang: String) {
                     } else {
                         Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                             Text(
-                                text = if (provider.isNotEmpty()) "Assistant Powered By $provider" else "Health GPT Assistant",
+                                text = if (provider.isNotEmpty()) trans("ai_powered_by").replace("%1", provider) else trans("ai_default_title"),
                                 fontWeight = FontWeight.Black, fontSize = 12.sp, color = HighlightTeal,
                                 modifier = Modifier.padding(bottom = 8.dp)
                             )
                             if (response.isEmpty()) {
                                 Text(
-                                    text = "Ask anything about your health records, metrics, trend indicators or suggest health tips.\n\n" +
-                                           "Sample Prompts:\n" +
-                                           "• \"What does my latest Blood Pressure reading indicate?\"\n" +
-                                           "• \"What is my dynamic BMI and how can I bring it to normal range?\"\n" +
-                                           "• \"Analyze my lipid logs (cholesterol & triglycerides).\"",
+                                    text = trans("ai_sample_prompts_intro"),
                                     fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             } else {
@@ -3890,6 +3912,7 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
     var keyInput by remember { mutableStateOf(apiKeyVal) }
     var modelInput by remember { mutableStateOf(modelNameState) }
     var selectProvider by remember { mutableStateOf(providerState) }
+    var showAdvancedAI by remember { mutableStateOf(false) }
 
     var importStatusMessage by remember { mutableStateOf("") }
     var showImportStatus by remember { mutableStateOf(false) }
@@ -4022,62 +4045,84 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
             }
         }
 
-        // AI Provider vertical selector matches layout from Screenshot 5!
+        // Advanced: bring-your-own-API-key AI setup, collapsed by default — normal users
+        // should use the "Share with AI" button on the AI Assistant screen instead.
         item {
-            Text(trans("ai_provider"), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showAdvancedAI = !showAdvancedAI }
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                listOf("OpenAI", "DeepSeek", "Gemini").forEach { prov ->
-                    val active = selectProvider == prov
-                    Button(
-                        onClick = {
-                            selectProvider = prov
-                            modelInput = when(prov) {
-                                "OpenAI" -> "gpt-4o-mini"
-                                "DeepSeek" -> "deepseek-chat"
-                                else -> "gemini-3.5-flash"
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (active) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surfaceVariant
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text(prov, color = Color.White, fontSize = 12.sp)
-                    }
-                }
+                Text(trans("advanced_ai_settings_toggle"), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Icon(
+                    imageVector = if (showAdvancedAI) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
 
-        // Model Name & Secure Text API Input Fields matching Screenshot 5!
-        item {
-            OutlinedTextField(
-                value = modelInput,
-                onValueChange = { modelInput = it },
-                label = { Text(trans("model_name")) },
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+        if (showAdvancedAI) {
+            // AI Provider vertical selector matches layout from Screenshot 5!
+            item {
+                Text(trans("ai_provider"), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf("OpenAI", "DeepSeek", "Gemini").forEach { prov ->
+                        val active = selectProvider == prov
+                        Button(
+                            onClick = {
+                                selectProvider = prov
+                                modelInput = when(prov) {
+                                    "OpenAI" -> "gpt-4o-mini"
+                                    "DeepSeek" -> "deepseek-chat"
+                                    else -> "gemini-3.5-flash"
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (active) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(prov, color = Color.White, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
 
-        item {
-            OutlinedTextField(
-                value = keyInput,
-                onValueChange = { keyInput = it },
-                label = { Text(trans("api_key")) },
-                modifier = Modifier.fillMaxWidth(),
-                visualTransformation = PasswordVisualTransformation()
-            )
-        }
+            // Model Name & Secure Text API Input Fields matching Screenshot 5!
+            item {
+                OutlinedTextField(
+                    value = modelInput,
+                    onValueChange = { modelInput = it },
+                    label = { Text(trans("model_name")) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
-        item {
-            Button(
-                onClick = { viewModel.saveAISettings(selectProvider, modelInput, keyInput) },
-                colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(trans("save_api_key"), color = SlateDarkBg, fontWeight = FontWeight.Bold)
+            item {
+                OutlinedTextField(
+                    value = keyInput,
+                    onValueChange = { keyInput = it },
+                    label = { Text(trans("api_key")) },
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = PasswordVisualTransformation()
+                )
+            }
+
+            item {
+                Button(
+                    onClick = { viewModel.saveAISettings(selectProvider, modelInput, keyInput) },
+                    colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(trans("save_api_key"), color = SlateDarkBg, fontWeight = FontWeight.Bold)
+                }
             }
         }
 
