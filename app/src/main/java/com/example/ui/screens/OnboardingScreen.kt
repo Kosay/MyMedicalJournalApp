@@ -12,6 +12,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.EmergencyInfo
 import com.example.ui.HealthViewModel
 import com.example.ui.LocalStrings
+import java.util.Locale
 
 private val SlateDarkBg = Color(0xFF1A2332)
 private val SlateCardBg  = Color(0xFF243447)
@@ -433,12 +436,50 @@ private fun PersonalInfoStep(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        OnboardingTextField(
-            value = dateOfBirth,
-            onValueChange = onDateOfBirthChange,
-            label = trans("date_of_birth"),
-            placeholder = "DD/MM/YYYY"
-        )
+        // Date of birth via calendar picker only — never a typed/raw age number
+        val dialogContext = LocalContext.current
+        Box(modifier = Modifier.fillMaxWidth()) {
+            OutlinedTextField(
+                value = dateOfBirth,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text(trans("date_of_birth"), color = MutedText, fontSize = 13.sp) },
+                trailingIcon = { Icon(Icons.Default.DateRange, null, tint = HighlightTeal) },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    focusedBorderColor = HighlightTeal,
+                    unfocusedBorderColor = DividerColor,
+                    cursorColor = HighlightTeal,
+                    focusedContainerColor = SlateCardBg,
+                    unfocusedContainerColor = SlateCardBg
+                ),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clickable {
+                        val cal = java.util.Calendar.getInstance()
+                        val parts = dateOfBirth.split("/")
+                        if (parts.size == 3) {
+                            parts[2].toIntOrNull()?.let { y -> cal.set(java.util.Calendar.YEAR, y) }
+                            parts[1].toIntOrNull()?.let { m -> cal.set(java.util.Calendar.MONTH, m - 1) }
+                            parts[0].toIntOrNull()?.let { d -> cal.set(java.util.Calendar.DAY_OF_MONTH, d) }
+                        }
+                        android.app.DatePickerDialog(
+                            dialogContext,
+                            { _, year, month, dayOfMonth ->
+                                onDateOfBirthChange(String.format(Locale.US, "%02d/%02d/%04d", dayOfMonth, month + 1, year))
+                            },
+                            cal.get(java.util.Calendar.YEAR),
+                            cal.get(java.util.Calendar.MONTH),
+                            cal.get(java.util.Calendar.DAY_OF_MONTH)
+                        ).show()
+                    }
+            )
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 

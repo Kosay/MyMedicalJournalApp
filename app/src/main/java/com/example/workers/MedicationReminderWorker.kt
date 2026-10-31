@@ -9,6 +9,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.MainActivity
 import com.example.MedicalJournalApp
+import com.example.ui.LocalStrings
 import kotlinx.coroutines.flow.first
 
 class MedicationReminderWorker(
@@ -21,6 +22,10 @@ class MedicationReminderWorker(
         val activeMeds = repository.allMedications.first().filter { it.isActive }
         if (activeMeds.isEmpty()) return Result.success()
 
+        val lang = context.getSharedPreferences("medical_journal_prefs", Context.MODE_PRIVATE)
+            .getString("lang", "en") ?: "en"
+        fun trans(key: String) = LocalStrings.get(key, lang)
+
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
@@ -32,9 +37,9 @@ class MedicationReminderWorker(
         val medList = activeMeds.joinToString("\n") { "• ${it.name} ${it.dosage} (${it.frequency})" }
         val notification = NotificationCompat.Builder(context, MedicalJournalApp.CHANNEL_REMINDERS)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
-            .setContentTitle("Medication Reminder")
-            .setContentText("Time to take your medications")
-            .setStyle(NotificationCompat.BigTextStyle().bigText("Don't forget your medications:\n$medList"))
+            .setContentTitle(trans("medication_reminder_title"))
+            .setContentText(trans("medication_reminder_subtitle"))
+            .setStyle(NotificationCompat.BigTextStyle().bigText("${trans("medication_reminder_list_prefix")}\n$medList"))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)

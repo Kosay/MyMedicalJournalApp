@@ -566,7 +566,7 @@ fun TrackScreen(viewModel: HealthViewModel, lang: String) {
                     IconButton(onClick = { activeSection = TrackSection.NONE }) {
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = trans("back"),
                             tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
@@ -718,8 +718,8 @@ fun BpDetailView(viewModel: HealthViewModel, lang: String) {
             val systolicPoints = records.take(7).reversed().map { it.systolic.toFloat() }
             val diastolicPoints = records.take(7).reversed().map { it.diastolic.toFloat() }
             DualTrendLineChart(
-                points1 = systolicPoints, label1 = "Systolic",
-                points2 = diastolicPoints, label2 = "Diastolic"
+                points1 = systolicPoints, label1 = trans("systolic_label"),
+                points2 = diastolicPoints, label2 = trans("diastolic_label")
             )
         }
 
@@ -733,7 +733,7 @@ fun BpDetailView(viewModel: HealthViewModel, lang: String) {
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
-                "Pattern Analysis (Sleep, Smoking, Activity)",
+                trans("pattern_analysis_title"),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
@@ -752,13 +752,13 @@ fun BpDetailView(viewModel: HealthViewModel, lang: String) {
                     .heightIn(max = 420.dp)
                     .verticalScroll(rememberScrollState())
             ) {
-                BpCorrelationBarChart("Blood Pressure vs Sleep Duration", correlationData.bySleep)
-                BpCorrelationBarChart("Blood Pressure vs Smoking (cigarettes/day)", correlationData.bySmoking)
-                BpCorrelationBarChart("Blood Pressure vs Activity", correlationData.byActivity)
-                BpCorrelationBarChart("Sleep + Smoking", correlationData.bySleepSmoking)
-                BpCorrelationBarChart("Sleep + Activity", correlationData.bySleepActivity)
-                BpCorrelationBarChart("Smoking + Activity", correlationData.bySmokingActivity)
-                BpCorrelationBarChart("Sleep + Smoking + Activity", correlationData.byAllThree)
+                BpCorrelationBarChart(trans("corr_sleep_duration"), correlationData.bySleep, lang = lang)
+                BpCorrelationBarChart(trans("corr_smoking"), correlationData.bySmoking, lang = lang)
+                BpCorrelationBarChart(trans("corr_activity"), correlationData.byActivity, lang = lang)
+                BpCorrelationBarChart(trans("corr_sleep_smoking"), correlationData.bySleepSmoking, lang = lang)
+                BpCorrelationBarChart(trans("corr_sleep_activity"), correlationData.bySleepActivity, lang = lang)
+                BpCorrelationBarChart(trans("corr_smoking_activity"), correlationData.bySmokingActivity, lang = lang)
+                BpCorrelationBarChart(trans("corr_all_three"), correlationData.byAllThree, lang = lang)
             }
         }
 
@@ -873,7 +873,7 @@ fun BpDetailView(viewModel: HealthViewModel, lang: String) {
                         horizontalArrangement = Arrangement.End,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        TextButton(onClick = { showDialog = false; editingRecord = null }) { Text("Cancel") }
+                        TextButton(onClick = { showDialog = false; editingRecord = null }) { Text(trans("cancel")) }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = {
@@ -890,7 +890,7 @@ fun BpDetailView(viewModel: HealthViewModel, lang: String) {
                                 systolicStr = ""; diastolicStr = ""; hrStr = ""; notesStr = ""
                             }
                         ) {
-                            Text(if (editingRecord != null) "Update" else "Save")
+                            Text(if (editingRecord != null) trans("update") else trans("save"))
                         }
                     }
                 }
@@ -923,7 +923,11 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
 
         if (records.isNotEmpty()) {
             val chartPoints = records.take(7).reversed().map { it.value }
-            TrendLineChart(points = chartPoints, label = "Blood Sugar (${records.firstOrNull()?.unit ?: "mg/dL"})")
+            TrendLineChart(
+                points = chartPoints,
+                label = trans("blood_sugar_chart_label").replace("%1", records.firstOrNull()?.unit ?: "mg/dL"),
+                lang = lang
+            )
         }
 
         Button(
@@ -1081,11 +1085,11 @@ fun BloodSugarDetailView(viewModel: HealthViewModel, lang: String) {
                     }
                     OutlinedTextField(
                         value = notesStr, onValueChange = { notesStr = it },
-                        label = { Text("Notes") }, modifier = Modifier.fillMaxWidth()
+                        label = { Text(trans("notes")) }, modifier = Modifier.fillMaxWidth()
                     )
                     DateTimePickerInline(context = context, timestamp = customTimestamp, onTimestampChange = { customTimestamp = it })
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { showDialog = false; editingRecord = null }) { Text("Cancel") }
+                        TextButton(onClick = { showDialog = false; editingRecord = null }) { Text(trans("cancel")) }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = {
@@ -1125,7 +1129,7 @@ fun WeightDetailView(viewModel: HealthViewModel, lang: String) {
     Column(modifier = Modifier.fillMaxSize()) {
         if (records.isNotEmpty()) {
             val chartPoints = records.take(7).reversed().map { it.weightKg }
-            TrendLineChart(points = chartPoints, label = "Weight (kg)")
+            TrendLineChart(points = chartPoints, label = trans("weight_chart_label"), lang = lang)
         }
 
         Button(
@@ -1197,11 +1201,11 @@ fun WeightDetailView(viewModel: HealthViewModel, lang: String) {
                     )
                     OutlinedTextField(
                         value = notesStr, onValueChange = { notesStr = it },
-                        label = { Text("Notes") }, modifier = Modifier.fillMaxWidth()
+                        label = { Text(trans("notes")) }, modifier = Modifier.fillMaxWidth()
                     )
                     DateTimePickerInline(context = context, timestamp = customTimestamp, onTimestampChange = { customTimestamp = it })
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { showDialog = false; editingRecord = null }) { Text("Cancel") }
+                        TextButton(onClick = { showDialog = false; editingRecord = null }) { Text(trans("cancel")) }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(onClick = {
                             val w = weightStr.toFloatOrNull() ?: 70.0f
@@ -1214,7 +1218,7 @@ fun WeightDetailView(viewModel: HealthViewModel, lang: String) {
                             showDialog = false; editingRecord = null
                             weightStr = ""; notesStr = ""
                         }) {
-                            Text(if (editingRecord != null) "Update" else "Save")
+                            Text(if (editingRecord != null) trans("update") else trans("save"))
                         }
                     }
                 }
@@ -1238,7 +1242,7 @@ fun HeightDetailView(viewModel: HealthViewModel, lang: String) {
     Column(modifier = Modifier.fillMaxSize()) {
         if (records.isNotEmpty()) {
             val chartPoints = records.take(7).reversed().map { it.heightCm }
-            TrendLineChart(points = chartPoints, label = trans("height_cm"))
+            TrendLineChart(points = chartPoints, label = trans("height_cm"), lang = lang)
         }
 
         Button(
@@ -1562,7 +1566,7 @@ fun MedicationDetailView(viewModel: HealthViewModel, lang: String) {
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(record.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
-                            Text("Dosage: ${record.dosage} | Frequency: ${record.frequency}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(trans("dosage_frequency_label").replace("%1", record.dosage).replace("%2", record.frequency), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Row(modifier = Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                                 val activeColor = if (record.isActive) HighlightTeal else WarningYellow
                                 Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(activeColor))
@@ -1606,7 +1610,7 @@ fun MedicationDetailView(viewModel: HealthViewModel, lang: String) {
                         Text(if (isActiveState) "Active" else "Inactive", fontSize = 13.sp, color = if (isActiveState) HighlightTeal else WarningYellow)
                     }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton(onClick = { showDialog = false; editingRecord = null }) { Text("Cancel") }
+                        TextButton(onClick = { showDialog = false; editingRecord = null }) { Text(trans("cancel")) }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(onClick = {
                             val rec = editingRecord
@@ -1618,7 +1622,7 @@ fun MedicationDetailView(viewModel: HealthViewModel, lang: String) {
                             showDialog = false; editingRecord = null
                             nameStr = ""; dosageStr = ""; freqStr = ""
                         }) {
-                            Text(if (editingRecord != null) "Update" else "Save")
+                            Text(if (editingRecord != null) trans("update") else trans("save"))
                         }
                     }
                 }
@@ -1720,7 +1724,7 @@ fun SymptomDetailView(viewModel: HealthViewModel, lang: String) {
                     OutlinedTextField(value = notesStr, onValueChange = { notesStr = it }, label = { Text(trans("notes")) }, modifier = Modifier.fillMaxWidth())
                     DateTimePickerInline(context = context, timestamp = customTimestamp, onTimestampChange = { customTimestamp = it })
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { showDialog = false; editingRecord = null }) { Text("Cancel") }
+                        TextButton(onClick = { showDialog = false; editingRecord = null }) { Text(trans("cancel")) }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(onClick = {
                             val rec = editingRecord
@@ -1732,7 +1736,7 @@ fun SymptomDetailView(viewModel: HealthViewModel, lang: String) {
                             showDialog = false; editingRecord = null
                             symptomStr = ""; notesStr = ""
                         }) {
-                            Text(if (editingRecord != null) "Update" else "Save")
+                            Text(if (editingRecord != null) trans("update") else trans("save"))
                         }
                     }
                 }
@@ -1756,7 +1760,7 @@ fun SleepDetailView(viewModel: HealthViewModel, lang: String) {
     Column(modifier = Modifier.fillMaxSize()) {
         if (records.isNotEmpty()) {
             val chartPoints = records.take(7).reversed().map { it.hours }
-            TrendLineChart(points = chartPoints, label = "Sleep Duration (hours)")
+            TrendLineChart(points = chartPoints, label = trans("sleep_chart_label"), lang = lang)
         }
 
         Button(
@@ -1821,7 +1825,7 @@ fun SleepDetailView(viewModel: HealthViewModel, lang: String) {
                     OutlinedTextField(value = notesStr, onValueChange = { notesStr = it }, label = { Text(trans("notes")) }, modifier = Modifier.fillMaxWidth())
                     DateTimePickerInline(context = context, timestamp = customTimestamp, onTimestampChange = { customTimestamp = it })
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { showDialog = false; editingRecord = null }) { Text("Cancel") }
+                        TextButton(onClick = { showDialog = false; editingRecord = null }) { Text(trans("cancel")) }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(onClick = {
                             val h = hoursStr.toFloatOrNull() ?: 8.0f
@@ -1834,7 +1838,7 @@ fun SleepDetailView(viewModel: HealthViewModel, lang: String) {
                             showDialog = false; editingRecord = null
                             hoursStr = ""; notesStr = ""
                         }) {
-                            Text(if (editingRecord != null) "Update" else "Save")
+                            Text(if (editingRecord != null) trans("update") else trans("save"))
                         }
                     }
                 }
@@ -2090,7 +2094,7 @@ fun LabResultDetailView(viewModel: HealthViewModel, lang: String) {
                     OutlinedTextField(value = refStr, onValueChange = { refStr = it }, label = { Text(trans("ref_range_hint")) }, modifier = Modifier.fillMaxWidth())
                     DateTimePickerInline(context = context, timestamp = customTimestamp, onTimestampChange = { customTimestamp = it })
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { showDialog = false; editingRecord = null }) { Text("Cancel") }
+                        TextButton(onClick = { showDialog = false; editingRecord = null }) { Text(trans("cancel")) }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(onClick = {
                             val v = valueStr.toFloatOrNull() ?: 100f
@@ -2103,7 +2107,7 @@ fun LabResultDetailView(viewModel: HealthViewModel, lang: String) {
                             showDialog = false; editingRecord = null
                             testNameStr = ""; valueStr = ""; unitStr = "mg/dL"; refStr = ""
                         }) {
-                            Text(if (editingRecord != null) "Update" else "Save")
+                            Text(if (editingRecord != null) trans("update") else trans("save"))
                         }
                     }
                 }
@@ -2114,7 +2118,8 @@ fun LabResultDetailView(viewModel: HealthViewModel, lang: String) {
 
 // Single-series trend chart
 @Composable
-fun TrendLineChart(points: List<Float>, label: String) {
+fun TrendLineChart(points: List<Float>, label: String, lang: String = "en") {
+    fun trans(key: String) = LocalStrings.get(key, lang)
     if (points.size < 2) {
         Card(
             modifier = Modifier
@@ -2124,7 +2129,7 @@ fun TrendLineChart(points: List<Float>, label: String) {
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
         ) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Needs at least 2 logs to draw chart graph", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(trans("needs_2_logs_graph"), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         return
@@ -2180,15 +2185,17 @@ fun DualTrendLineChart(
     points2: List<Float>,
     label2: String,
     color1: Color = HighlightTeal,
-    color2: Color = AlertRed
+    color2: Color = AlertRed,
+    lang: String = "en"
 ) {
+    fun trans(key: String) = LocalStrings.get(key, lang)
     if (points1.size < 2) {
         Card(
             modifier = Modifier.fillMaxWidth().height(130.dp).padding(16.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
         ) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Needs at least 2 logs to draw chart", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(trans("needs_2_logs_chart"), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         return
@@ -2255,8 +2262,10 @@ fun BpCorrelationBarChart(
     title: String,
     buckets: List<com.example.ui.BpCorrelationBucket>,
     color1: Color = HighlightTeal,
-    color2: Color = AlertRed
+    color2: Color = AlertRed,
+    lang: String = "en"
 ) {
+    fun trans(key: String) = LocalStrings.get(key, lang)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -2269,7 +2278,7 @@ fun BpCorrelationBarChart(
 
         if (buckets.isEmpty()) {
             Box(modifier = Modifier.fillMaxWidth().height(40.dp), contentAlignment = Alignment.CenterStart) {
-                Text("Not enough data yet", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(trans("not_enough_data"), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             return@Column
         }
@@ -2278,12 +2287,12 @@ fun BpCorrelationBarChart(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color1))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Systolic", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = color1)
+                Text(trans("systolic_label"), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = color1)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color2))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Diastolic", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = color2)
+                Text(trans("diastolic_label"), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = color2)
             }
         }
 
@@ -2413,7 +2422,7 @@ fun LifestyleScreen(viewModel: HealthViewModel, lang: String) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = { activeSub = LifeSection.NONE }) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onBackground)
+                    Icon(Icons.Default.ArrowBack, contentDescription = trans("back"), tint = MaterialTheme.colorScheme.onBackground)
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
@@ -2436,7 +2445,7 @@ fun LifestyleScreen(viewModel: HealthViewModel, lang: String) {
                 Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("${waterToday2.toInt()} ml", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = HighlightTeal)
-                        Text("Goal: ${waterGoal} ml", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(trans("water_goal_label").replace("%1", waterGoal.toString()), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     androidx.compose.material3.LinearProgressIndicator(
                         progress = { progress },
@@ -2461,7 +2470,7 @@ fun LifestyleScreen(viewModel: HealthViewModel, lang: String) {
                     value = numStr,
                     onValueChange = { numStr = it },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    label = { Text("Log amount") },
+                    label = { Text(trans("log_amount")) },
                     modifier = Modifier.weight(1f)
                 )
                 Button(
@@ -2477,7 +2486,7 @@ fun LifestyleScreen(viewModel: HealthViewModel, lang: String) {
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
                 ) {
-                    Text("Add", color = SlateDarkBg, fontWeight = FontWeight.Bold)
+                    Text(trans("add_label"), color = SlateDarkBg, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -2531,18 +2540,21 @@ fun LifestyleScreen(viewModel: HealthViewModel, lang: String) {
 
 @Composable
 fun MoodDetailView(viewModel: HealthViewModel, lang: String, onBack: () -> Unit) {
+    fun trans(key: String) = LocalStrings.get(key, lang)
     val records by viewModel.moodRecords.collectAsState()
     var selectedScore by remember { mutableStateOf(3) }
     var notesStr by remember { mutableStateOf("") }
     val moodEmojis = listOf("😢", "😕", "😐", "🙂", "😄")
-    val moodLabels = listOf("Very Bad", "Bad", "Neutral", "Good", "Great")
+    val moodLabels = listOf(
+        trans("mood_very_bad"), trans("mood_bad"), trans("mood_neutral"), trans("mood_good"), trans("mood_great")
+    )
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onBackground)
+                Icon(Icons.Default.ArrowBack, contentDescription = trans("back"), tint = MaterialTheme.colorScheme.onBackground)
             }
-            Text("Mood Log", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+            Text(trans("mood_log_title"), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
         }
 
         Card(
@@ -2550,7 +2562,7 @@ fun MoodDetailView(viewModel: HealthViewModel, lang: String, onBack: () -> Unit)
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("How are you feeling?", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Text(trans("mood_question"), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     moodEmojis.forEachIndexed { index, emoji ->
                         val score = index + 1
@@ -2572,7 +2584,7 @@ fun MoodDetailView(viewModel: HealthViewModel, lang: String, onBack: () -> Unit)
                 OutlinedTextField(
                     value = notesStr,
                     onValueChange = { notesStr = it },
-                    label = { Text("Notes (optional)") },
+                    label = { Text(trans("notes_optional")) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
@@ -2584,7 +2596,7 @@ fun MoodDetailView(viewModel: HealthViewModel, lang: String, onBack: () -> Unit)
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
                 ) {
-                    Text("Log Mood", color = SlateDarkBg, fontWeight = FontWeight.Bold)
+                    Text(trans("log_mood"), color = SlateDarkBg, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -2595,7 +2607,7 @@ fun MoodDetailView(viewModel: HealthViewModel, lang: String, onBack: () -> Unit)
         ) {
             items(records) { r ->
                 val emoji = moodEmojis.getOrElse(r.score - 1) { "😐" }
-                val label = moodLabels.getOrElse(r.score - 1) { "Neutral" }
+                val label = moodLabels.getOrElse(r.score - 1) { trans("mood_neutral") }
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
@@ -2720,7 +2732,7 @@ fun MoreScreen(viewModel: HealthViewModel, lang: String) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = { activeSub = MoreSection.NONE }) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onBackground)
+                    Icon(Icons.Default.ArrowBack, contentDescription = trans("back"), tint = MaterialTheme.colorScheme.onBackground)
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 val titleString = when(activeSub) {
@@ -2872,7 +2884,7 @@ fun AppointmentsView(viewModel: HealthViewModel, lang: String) {
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                 )
                                 if (appt.profileName.isNotEmpty()) {
-                                    Text("For: ${appt.profileName}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                                    Text(trans("for_profile_label").replace("%1", appt.profileName), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
                                 }
                                 if (appt.notes.isNotEmpty()) {
                                     Text(appt.notes, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
@@ -2969,6 +2981,7 @@ fun AppointmentsView(viewModel: HealthViewModel, lang: String) {
 // Document Attachments
 @Composable
 fun DocumentAttachmentsView(viewModel: HealthViewModel, lang: String) {
+    fun trans(key: String) = LocalStrings.get(key, lang)
     val context = LocalContext.current
     val list by viewModel.attachments.collectAsState()
 
@@ -3026,13 +3039,13 @@ fun DocumentAttachmentsView(viewModel: HealthViewModel, lang: String) {
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
             ) {
-                Text("Select PDF", color = SlateDarkBg, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text(trans("select_pdf"), color = SlateDarkBg, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
         }
 
         if (list.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text("No attachments loaded.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(trans("no_attachments_loaded"), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         } else {
             LazyVerticalGrid(
@@ -3112,11 +3125,11 @@ fun DocumentAttachmentsView(viewModel: HealthViewModel, lang: String) {
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Enter Attachment Details", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text(trans("enter_attachment_details"), fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     OutlinedTextField(
                         value = attachTitle,
                         onValueChange = { attachTitle = it },
-                        label = { Text("Title / Description") },
+                        label = { Text(trans("title_description")) },
                         modifier = Modifier.fillMaxWidth()
                     )
 
@@ -3124,7 +3137,7 @@ fun DocumentAttachmentsView(viewModel: HealthViewModel, lang: String) {
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End
                     ) {
-                        TextButton(onClick = { showDialog = false }) { Text("Cancel") }
+                        TextButton(onClick = { showDialog = false }) { Text(trans("cancel")) }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = {
@@ -3137,7 +3150,7 @@ fun DocumentAttachmentsView(viewModel: HealthViewModel, lang: String) {
                                 selectedUri = null
                             }
                         ) {
-                            Text("Save")
+                            Text(trans("save"))
                         }
                     }
                 }
@@ -3210,7 +3223,7 @@ fun EmergencyCardView(viewModel: HealthViewModel, lang: String) {
         }
 
         item {
-            Text("Sex", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(trans("sex_field_label"), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(modifier = Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("Male", "Female").forEach { option ->
@@ -3237,7 +3250,7 @@ fun EmergencyCardView(viewModel: HealthViewModel, lang: String) {
                 OutlinedTextField(
                     value = childrenStr,
                     onValueChange = { if (it.all { c -> c.isDigit() }) childrenStr = it },
-                    label = { Text("Number of Children") },
+                    label = { Text(trans("number_of_children_field")) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -3304,7 +3317,7 @@ fun EmergencyCardView(viewModel: HealthViewModel, lang: String) {
                     .padding(top = 12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
             ) {
-                Text("Save Changes", color = SlateDarkBg, fontWeight = FontWeight.Bold)
+                Text(trans("save_changes"), color = SlateDarkBg, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -3339,8 +3352,8 @@ fun HealthSummaryView(viewModel: HealthViewModel, lang: String) {
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text("Compiled Diagnostic Summary", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = HighlightTeal)
-                Text("LATEST DIAGNOSTIC VITAL METRICS:", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text(trans("diagnostic_summary_title"), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = HighlightTeal)
+                Text(trans("latest_vital_metrics"), fontWeight = FontWeight.Bold, fontSize = 12.sp)
 
                 Text(
                     text = "• Blood Pressure: ${bpLatest?.let { "${it.systolic}/${it.diastolic} mmHg (HR: ${it.heartRate} bpm)" } ?: "Not logged"}\n" +
@@ -3349,7 +3362,7 @@ fun HealthSummaryView(viewModel: HealthViewModel, lang: String) {
                     fontSize = 14.sp
                 )
 
-                Text("REGISTERED CONTINUOUS DRUG DOSAGE:", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text(trans("registered_drug_dosage"), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 val activeMeds = medications.filter { it.isActive }
                 if (activeMeds.isEmpty()) {
                     Text("• No active medications registered in database.", fontSize = 14.sp)
@@ -3366,7 +3379,7 @@ fun HealthSummaryView(viewModel: HealthViewModel, lang: String) {
                 ) {
                     Icon(Icons.Default.Print, contentDescription = "Print/Save PDF", tint = SlateDarkBg)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Print / Save as Polished PDF", color = SlateDarkBg, fontWeight = FontWeight.Bold)
+                    Text(trans("print_save_pdf"), color = SlateDarkBg, fontWeight = FontWeight.Bold)
                 }
 
                 OutlinedButton(
@@ -3376,7 +3389,7 @@ fun HealthSummaryView(viewModel: HealthViewModel, lang: String) {
                 ) {
                     Icon(Icons.Default.Share, contentDescription = "Share", tint = HighlightTeal)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Share HTML Report", color = HighlightTeal, fontWeight = FontWeight.Bold)
+                    Text(trans("share_html_report"), color = HighlightTeal, fontWeight = FontWeight.Bold)
                 }
 
                 OutlinedButton(
@@ -3386,7 +3399,7 @@ fun HealthSummaryView(viewModel: HealthViewModel, lang: String) {
                 ) {
                     Icon(Icons.Default.GridOn, contentDescription = "Export CSV", tint = HighlightTeal)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Export CSV (Excel)", color = HighlightTeal, fontWeight = FontWeight.Bold)
+                    Text(trans("export_csv_excel"), color = HighlightTeal, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -3409,7 +3422,7 @@ fun SearchJournalView(viewModel: HealthViewModel, lang: String) {
         OutlinedTextField(
             value = q,
             onValueChange = { viewModel.updateSearchQuery(it) },
-            label = { Text("Search comments / medication logs / symptoms...") },
+            label = { Text(trans("search_hint_full")) },
             modifier = Modifier.fillMaxWidth(),
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search Icon") }
         )
@@ -3418,7 +3431,7 @@ fun SearchJournalView(viewModel: HealthViewModel, lang: String) {
 
         if (q.trim().isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text("Type any term above to search instantly.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(trans("search_placeholder_prompt"), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         } else {
             LazyColumn(
@@ -3428,7 +3441,7 @@ fun SearchJournalView(viewModel: HealthViewModel, lang: String) {
                 // Search in blood pressure comments
                 val filteredBp = bpList.filter { it.notes.lowercase(Locale.ROOT).contains(q.lowercase(Locale.ROOT)) }
                 if (filteredBp.isNotEmpty()) {
-                    item { Text("Blood Pressure Comments", fontWeight = FontWeight.Bold, color = HighlightTeal, fontSize = 12.sp) }
+                    item { Text(trans("search_section_bp"), fontWeight = FontWeight.Bold, color = HighlightTeal, fontSize = 12.sp) }
                     items(filteredBp) { r ->
                         SearchMatchRow(title = "BP Reading: ${r.systolic}/${r.diastolic}", text = r.notes, date = viewModel.formatDate(r.timestamp))
                     }
@@ -3437,7 +3450,7 @@ fun SearchJournalView(viewModel: HealthViewModel, lang: String) {
                 // Search in Weight Logs
                 val filteredWeight = weightList.filter { it.notes.lowercase(Locale.ROOT).contains(q.lowercase(Locale.ROOT)) }
                 if (filteredWeight.isNotEmpty()) {
-                    item { Text("Weight Entry Comments", fontWeight = FontWeight.Bold, color = HighlightTeal, fontSize = 12.sp) }
+                    item { Text(trans("search_section_weight"), fontWeight = FontWeight.Bold, color = HighlightTeal, fontSize = 12.sp) }
                     items(filteredWeight) { r ->
                         SearchMatchRow(title = "Weight: ${r.weightKg} kg", text = r.notes, date = viewModel.formatDate(r.timestamp))
                     }
@@ -3446,7 +3459,7 @@ fun SearchJournalView(viewModel: HealthViewModel, lang: String) {
                 // Search in Medicines
                 val filteredMeds = medsList.filter { it.name.lowercase(Locale.ROOT).contains(q.lowercase(Locale.ROOT)) || it.dosage.lowercase(Locale.ROOT).contains(q.lowercase(Locale.ROOT)) }
                 if (filteredMeds.isNotEmpty()) {
-                    item { Text("Medication Matches", fontWeight = FontWeight.Bold, color = HighlightTeal, fontSize = 12.sp) }
+                    item { Text(trans("search_section_medication"), fontWeight = FontWeight.Bold, color = HighlightTeal, fontSize = 12.sp) }
                     items(filteredMeds) { r ->
                         SearchMatchRow(title = r.name, text = "Dosage: ${r.dosage} | Frequency: ${r.frequency}", date = "")
                     }
@@ -3455,7 +3468,7 @@ fun SearchJournalView(viewModel: HealthViewModel, lang: String) {
                 // Search in Symptoms
                 val filteredSymptoms = symptomsList.filter { it.symptomName.lowercase(Locale.ROOT).contains(q.lowercase(Locale.ROOT)) || it.notes.lowercase(Locale.ROOT).contains(q.lowercase(Locale.ROOT)) }
                 if (filteredSymptoms.isNotEmpty()) {
-                    item { Text("Symptom Logs", fontWeight = FontWeight.Bold, color = HighlightTeal, fontSize = 12.sp) }
+                    item { Text(trans("search_section_symptom"), fontWeight = FontWeight.Bold, color = HighlightTeal, fontSize = 12.sp) }
                     items(filteredSymptoms) { r ->
                         SearchMatchRow(title = "${r.symptomName} (${r.severity})", text = r.notes, date = viewModel.formatDate(r.timestamp))
                     }
@@ -3584,7 +3597,7 @@ fun FamilyMembersView(viewModel: HealthViewModel, lang: String) {
                     modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text(if (editingMember != null) "Edit Member" else trans("add") + " " + trans("family_members"), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text(if (editingMember != null) trans("edit_member") else trans("add") + " " + trans("family_members"), fontWeight = FontWeight.Bold, fontSize = 16.sp)
 
                     OutlinedTextField(value = nameStr, onValueChange = { nameStr = it }, label = { Text(trans("full_name") + " *") }, modifier = Modifier.fillMaxWidth())
 
@@ -3749,6 +3762,7 @@ fun FamilyMembersView(viewModel: HealthViewModel, lang: String) {
 
 @Composable
 fun AIHealthAssistantView(viewModel: HealthViewModel, lang: String) {
+    fun trans(key: String) = LocalStrings.get(key, lang)
     val response by viewModel.aiResponse.collectAsState()
     val loading by viewModel.aiLoading.collectAsState()
     val weeklyNarrative by viewModel.weeklyNarrative.collectAsState()
@@ -3765,12 +3779,12 @@ fun AIHealthAssistantView(viewModel: HealthViewModel, lang: String) {
                 onClick = { showWeekly = false },
                 border = BorderStroke(1.dp, if (!showWeekly) HighlightTeal else MaterialTheme.colorScheme.outline),
                 modifier = Modifier.weight(1f)
-            ) { Text("Chat", color = if (!showWeekly) HighlightTeal else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp) }
+            ) { Text(trans("ai_tab_chat"), color = if (!showWeekly) HighlightTeal else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp) }
             OutlinedButton(
                 onClick = { showWeekly = true },
                 border = BorderStroke(1.dp, if (showWeekly) HighlightTeal else MaterialTheme.colorScheme.outline),
                 modifier = Modifier.weight(1f)
-            ) { Text("Weekly Summary", color = if (showWeekly) HighlightTeal else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp) }
+            ) { Text(trans("ai_tab_weekly_summary"), color = if (showWeekly) HighlightTeal else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp) }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -3785,13 +3799,13 @@ fun AIHealthAssistantView(viewModel: HealthViewModel, lang: String) {
                         Column(modifier = Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
                             CircularProgressIndicator(color = HighlightTeal)
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text("Generating your 7-day health summary...", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(trans("generating_weekly_summary"), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     } else {
                         Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                            Text("AI Weekly Health Report", fontWeight = FontWeight.Black, fontSize = 12.sp, color = HighlightTeal, modifier = Modifier.padding(bottom = 8.dp))
+                            Text(trans("ai_weekly_health_report"), fontWeight = FontWeight.Black, fontSize = 12.sp, color = HighlightTeal, modifier = Modifier.padding(bottom = 8.dp))
                             if (weeklyNarrative.isEmpty()) {
-                                Text("Tap \"Generate\" below to get a personalised 7-day health narrative powered by AI.", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(trans("tap_generate_weekly"), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             } else {
                                 Text(weeklyNarrative, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
                             }
@@ -3806,7 +3820,7 @@ fun AIHealthAssistantView(viewModel: HealthViewModel, lang: String) {
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
             ) {
-                Text("Generate Weekly Summary", color = SlateDarkBg, fontWeight = FontWeight.Bold)
+                Text(trans("generate_weekly_summary"), color = SlateDarkBg, fontWeight = FontWeight.Bold)
             }
         } else {
             Card(
@@ -3844,14 +3858,14 @@ fun AIHealthAssistantView(viewModel: HealthViewModel, lang: String) {
                 OutlinedTextField(
                     value = userQueryInput,
                     onValueChange = { userQueryInput = it },
-                    label = { Text("Ask your health assistant...") },
+                    label = { Text(trans("ask_health_assistant_placeholder")) },
                     modifier = Modifier.weight(1f)
                 )
                 Button(
                     onClick = { viewModel.queryAIAssistant(userQueryInput); userQueryInput = "" },
                     enabled = userQueryInput.trim().isNotEmpty() && !loading,
                     colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
-                ) { Text("Send", color = SlateDarkBg, fontWeight = FontWeight.Bold) }
+                ) { Text(trans("send"), color = SlateDarkBg, fontWeight = FontWeight.Bold) }
             }
         }
     }
@@ -3905,11 +3919,11 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
     if (showImportStatus) {
         AlertDialog(
             onDismissRequest = { showImportStatus = false },
-            title = { Text("Restore Status", color = HighlightTeal, fontWeight = FontWeight.Bold) },
+            title = { Text(trans("restore_status"), color = HighlightTeal, fontWeight = FontWeight.Bold) },
             text = { Text(importStatusMessage, color = Color.White) },
             confirmButton = {
                 TextButton(onClick = { showImportStatus = false }) {
-                    Text("OK", color = HighlightTeal, fontWeight = FontWeight.Bold)
+                    Text(trans("ok"), color = HighlightTeal, fontWeight = FontWeight.Bold)
                 }
             },
             containerColor = SlateCardBg
@@ -3929,7 +3943,7 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                listOf("SYSTEM", "LIGHT", "DARK").forEach { mode ->
+                listOf("SYSTEM" to "theme_system", "LIGHT" to "theme_light", "DARK" to "theme_dark").forEach { (mode, labelKey) ->
                     val active = themeMode.uppercase() == mode
                     Button(
                         onClick = { viewModel.updateTheme(mode.lowercase()) },
@@ -3938,7 +3952,7 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                         ),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text(mode, color = if (active) Color.White else MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
+                        Text(trans(labelKey), color = if (active) Color.White else MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
                     }
                 }
             }
