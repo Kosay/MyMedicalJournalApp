@@ -276,6 +276,9 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
     val periodRecords: StateFlow<List<PeriodRecord>> =
         repository.allPeriods.forActiveProfile { it.profileId }
 
+    val vaccinations: StateFlow<List<VaccinationRecord>> =
+        repository.allVaccinations.forActiveProfile { it.profileId }
+
     val familyMembers: StateFlow<List<FamilyMemberProfile>> = repository.allFamilyMembers
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -818,6 +821,34 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
 
     fun deleteHeight(record: HeightRecord) {
         viewModelScope.launch(Dispatchers.IO) { repository.deleteHeight(record) }
+    }
+
+    // --- Vaccinations (child growth tracking) ---
+    fun addVaccination(vaccineName: String, doseNumber: Int, scheduledDate: Long?, administeredDate: Long?, notes: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertVaccination(
+                VaccinationRecord(
+                    profileId = _activeProfileId.value,
+                    vaccineName = vaccineName,
+                    doseNumber = doseNumber,
+                    scheduledDate = scheduledDate,
+                    administeredDate = administeredDate,
+                    notes = notes
+                )
+            )
+        }
+    }
+
+    fun updateVaccination(record: VaccinationRecord) {
+        viewModelScope.launch(Dispatchers.IO) { repository.updateVaccination(record) }
+    }
+
+    fun markVaccinationGiven(record: VaccinationRecord, givenOn: Long = System.currentTimeMillis()) {
+        viewModelScope.launch(Dispatchers.IO) { repository.updateVaccination(record.copy(administeredDate = givenOn)) }
+    }
+
+    fun deleteVaccination(record: VaccinationRecord) {
+        viewModelScope.launch(Dispatchers.IO) { repository.deleteVaccination(record) }
     }
 
     // --- Period tracking (women) ---

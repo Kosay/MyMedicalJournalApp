@@ -499,7 +499,7 @@ fun getBloodSugarReferenceRange(category: String, unit: String): String {
 // ==========================================
 // 2. TRACK SCREEN (Minds Screenshot 3)
 // ==========================================
-enum class TrackSection { NONE, BP, BLOOD_SUGAR, WEIGHT, MEDS, SYMPTOMS, SLEEP, LAB_RESULTS, HEIGHT, PERIOD }
+enum class TrackSection { NONE, BP, BLOOD_SUGAR, WEIGHT, MEDS, SYMPTOMS, SLEEP, LAB_RESULTS, HEIGHT, PERIOD, VACCINATION }
 
 @Composable
 fun TrackScreen(viewModel: HealthViewModel, lang: String) {
@@ -538,6 +538,7 @@ fun TrackScreen(viewModel: HealthViewModel, lang: String) {
                 add(Pair("blood_sugar", TrackSection.BLOOD_SUGAR))
                 add(Pair("weight", TrackSection.WEIGHT))
                 if (isChildProfile) add(Pair("height_track", TrackSection.HEIGHT))
+                if (isChildProfile) add(Pair("vaccination_track", TrackSection.VACCINATION))
                 if (isFemaleProfile) add(Pair("period_track", TrackSection.PERIOD))
                 add(Pair("medications", TrackSection.MEDS))
                 add(Pair("symptoms", TrackSection.SYMPTOMS))
@@ -581,6 +582,7 @@ fun TrackScreen(viewModel: HealthViewModel, lang: String) {
                             TrackSection.SLEEP -> trans("sleep")
                             TrackSection.HEIGHT -> trans("height_track")
                             TrackSection.PERIOD -> trans("period_track")
+                            TrackSection.VACCINATION -> trans("vaccination_track")
                             else -> trans("lab_results")
                         },
                         fontSize = 18.sp,
@@ -601,6 +603,7 @@ fun TrackScreen(viewModel: HealthViewModel, lang: String) {
                         TrackSection.LAB_RESULTS -> LabResultDetailView(viewModel, lang)
                         TrackSection.HEIGHT -> HeightDetailView(viewModel, lang)
                         TrackSection.PERIOD -> PeriodDetailView(viewModel, lang)
+                        TrackSection.VACCINATION -> VaccinationDetailView(viewModel, lang)
                         else -> {}
                     }
                 }
@@ -1332,6 +1335,198 @@ fun HeightDetailView(viewModel: HealthViewModel, lang: String) {
                             }
                             showDialog = false; editingRecord = null
                             heightStr = ""; notesStr = ""
+                        }) {
+                            Text(if (editingRecord != null) trans("update") else trans("save"))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun VaccinationDetailView(viewModel: HealthViewModel, lang: String) {
+    fun trans(key: String) = LocalStrings.get(key, lang)
+    val records by viewModel.vaccinations.collectAsState()
+    var showDialog by remember { mutableStateOf(false) }
+    var editingRecord by remember { mutableStateOf<com.example.data.VaccinationRecord?>(null) }
+
+    var vaccineNameStr by remember { mutableStateOf("") }
+    var doseNumberStr by remember { mutableStateOf("1") }
+    var isGiven by remember { mutableStateOf(false) }
+    var dateTs by remember { mutableStateOf(System.currentTimeMillis()) }
+    var notesStr by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    var nameExpanded by remember { mutableStateOf(false) }
+
+    fun resetDialog() {
+        vaccineNameStr = ""; doseNumberStr = "1"; isGiven = false
+        dateTs = System.currentTimeMillis(); notesStr = ""
+    }
+
+    // Standard schedule entries with no matching logged record yet — a quick "still due" checklist
+    val loggedKeys = records.map { "${it.vaccineName}|${it.doseNumber}" }.toSet()
+    val suggestedDue = com.example.data.VaccineSchedule.standardSchedule
+        .filter { "${it.vaccineName}|${it.doseNumber}" !in loggedKeys }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Button(
+            onClick = { editingRecord = null; resetDialog(); showDialog = true },
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
+        ) {
+            Text(trans("add_vaccination"), color = SlateDarkBg, fontWeight = FontWeight.Bold)
+        }
+
+        if (records.isEmpty() && suggestedDue.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(trans("no_vaccinations_logged"), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(records) { record ->
+                    val isDue = record.administeredDate == null
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("${record.vaccineName} — ${trans("dose_number")} ${record.doseNumber}", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                                if (record.administeredDate != null) {
+                                    Text("${trans("date_given")}: ${viewModel.formatDateOnly(record.administeredDate)}", fontSize = 12.sp, color = HighlightTeal)
+                                } else {
+                                    Text(trans("date_due"), fontSize = 12.sp, color = WarningYellow)
+                                }
+                                if (record.notes.isNotEmpty()) {
+                                    Text(record.notes, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                                }
+                            }
+                            Row {
+                                if (isDue) {
+                                    IconButton(onClick = { viewModel.markVaccinationGiven(record) }) {
+                                        Icon(Icons.Default.CheckCircle, contentDescription = trans("mark_as_given"), tint = HighlightTeal)
+                                    }
+                                }
+                                IconButton(onClick = {
+                                    editingRecord = record
+                                    vaccineNameStr = record.vaccineName
+                                    doseNumberStr = record.doseNumber.toString()
+                                    isGiven = record.administeredDate != null
+                                    dateTs = record.administeredDate ?: record.scheduledDate ?: System.currentTimeMillis()
+                                    notesStr = record.notes
+                                    showDialog = true
+                                }) {
+                                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = HighlightTeal)
+                                }
+                                IconButton(onClick = { viewModel.deleteVaccination(record) }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AlertRed)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (suggestedDue.isNotEmpty()) {
+                    item {
+                        Text(trans("date_due"), fontWeight = FontWeight.Bold, color = WarningYellow, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+                    }
+                    items(suggestedDue) { entry ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                editingRecord = null
+                                vaccineNameStr = entry.vaccineName
+                                doseNumberStr = entry.doseNumber.toString()
+                                isGiven = false
+                                dateTs = System.currentTimeMillis()
+                                notesStr = ""
+                                showDialog = true
+                            },
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f))
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("${entry.vaccineName} — ${trans("dose_number")} ${entry.doseNumber}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Icon(Icons.Default.Add, contentDescription = trans("add_vaccination"), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showDialog) {
+        Dialog(onDismissRequest = { showDialog = false; editingRecord = null }) {
+            Card(modifier = Modifier.fillMaxWidth().padding(16.dp), shape = RoundedCornerShape(16.dp)) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(if (editingRecord != null) trans("edit_vaccination_title") else trans("add_vaccination"), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = vaccineNameStr,
+                            onValueChange = { vaccineNameStr = it },
+                            label = { Text(trans("vaccine_name")) },
+                            trailingIcon = { Icon(Icons.Default.ArrowDropDown, null, modifier = Modifier.clickable { nameExpanded = true }) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        DropdownMenu(expanded = nameExpanded, onDismissRequest = { nameExpanded = false }) {
+                            com.example.data.VaccineSchedule.standardSchedule.map { it.vaccineName }.distinct().forEach { name ->
+                                DropdownMenuItem(text = { Text(name) }, onClick = { vaccineNameStr = name; nameExpanded = false })
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = doseNumberStr, onValueChange = { doseNumberStr = it },
+                        label = { Text(trans("dose_number")) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = isGiven, onCheckedChange = { isGiven = it }, colors = CheckboxDefaults.colors(checkedColor = HighlightTeal))
+                        Text(trans("mark_as_given"), fontSize = 13.sp)
+                    }
+                    if (isGiven) {
+                        DateTimePickerInline(context = context, timestamp = dateTs, onTimestampChange = { dateTs = it }, label = trans("date_given"))
+                    }
+
+                    OutlinedTextField(
+                        value = notesStr, onValueChange = { notesStr = it },
+                        label = { Text(trans("vaccination_notes")) }, modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { showDialog = false; editingRecord = null }) { Text(trans("cancel")) }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(onClick = {
+                            val dose = doseNumberStr.toIntOrNull() ?: 1
+                            val administered = if (isGiven) dateTs else null
+                            val rec = editingRecord
+                            if (rec != null) {
+                                viewModel.updateVaccination(rec.copy(
+                                    vaccineName = vaccineNameStr, doseNumber = dose,
+                                    administeredDate = administered, notes = notesStr
+                                ))
+                            } else {
+                                viewModel.addVaccination(vaccineNameStr, dose, null, administered, notesStr)
+                            }
+                            showDialog = false; editingRecord = null
                         }) {
                             Text(if (editingRecord != null) trans("update") else trans("save"))
                         }

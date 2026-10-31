@@ -393,7 +393,8 @@ object LocalStrings {
             "app_lock_pin_mismatch" to "PINs don't match. Try again.",
             "app_lock_set_pin_subtitle" to "Choose a 4-digit PIN to protect your health records",
             "continue_label" to "Continue",
-            "unlock" to "Unlock"
+            "unlock" to "Unlock",
+            "edit_vaccination_title" to "Edit Vaccination"
         ),
         "ar" to mapOf(
             "dashboard" to "لوحة البيانات",
@@ -786,7 +787,8 @@ object LocalStrings {
             "app_lock_pin_mismatch" to "رمزا PIN غير متطابقين. حاول مرة أخرى.",
             "app_lock_set_pin_subtitle" to "اختر رمز PIN من 4 أرقام لحماية سجلاتك الصحية",
             "continue_label" to "استمرار",
-            "unlock" to "فتح القفل"
+            "unlock" to "فتح القفل",
+            "edit_vaccination_title" to "تعديل التطعيم"
         )
     )
 
