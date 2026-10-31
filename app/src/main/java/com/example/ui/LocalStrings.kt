@@ -386,7 +386,9 @@ object LocalStrings {
             "weight_summary_prefix" to "Body Weight",
             "sleep_summary_prefix" to "Daily Sleep",
             "hours_unit" to "hours",
-            "no_active_meds" to "No active medications registered in database."
+            "no_active_meds" to "No active medications registered in database.",
+            "adherence_chart_label" to "Doses Taken (Last 7 Days)",
+            "symptom_frequency_chart_label" to "Symptom Occurrences (Last 4 Weeks)"
         ),
         "ar" to mapOf(
             "dashboard" to "لوحة البيانات",
@@ -772,7 +774,9 @@ object LocalStrings {
             "weight_summary_prefix" to "وزن الجسم",
             "sleep_summary_prefix" to "النوم اليومي",
             "hours_unit" to "ساعات",
-            "no_active_meds" to "لا توجد أدوية نشطة مسجلة في قاعدة البيانات."
+            "no_active_meds" to "لا توجد أدوية نشطة مسجلة في قاعدة البيانات.",
+            "adherence_chart_label" to "الجرعات المأخوذة (آخر 7 أيام)",
+            "symptom_frequency_chart_label" to "تكرار الأعراض (آخر 4 أسابيع)"
         )
     )
 

@@ -1388,6 +1388,15 @@ fun PeriodDetailView(viewModel: HealthViewModel, lang: String) {
             }
         }
 
+        // Cycle-length trend chart (days between consecutive period starts)
+        val cycleLengths = records.map { it.startTimestamp }.sortedDescending()
+            .zipWithNext { newer, older -> ((newer - older) / 86_400_000L).toFloat() }
+            .filter { it in 15f..60f }
+            .take(7).reversed()
+        if (cycleLengths.size >= 2) {
+            TrendLineChart(points = cycleLengths, label = trans("avg_cycle"), lang = lang)
+        }
+
         Button(
             onClick = {
                 editingRecord = null
@@ -1551,7 +1560,20 @@ fun MedicationDetailView(viewModel: HealthViewModel, lang: String) {
         return java.text.SimpleDateFormat("hh:mm a", Locale.getDefault()).format(cal.time)
     }
 
+    // Adherence trend: doses taken per day over the last 7 days (across all medications)
+    val doseRecords by viewModel.medicationDoses.collectAsState()
+    val dayMs = 86_400_000L
+    val todayStart = (System.currentTimeMillis() / dayMs) * dayMs
+    val dailyTakenCounts = (6 downTo 0).map { daysAgo ->
+        val dayStart = todayStart - daysAgo * dayMs
+        val dayEnd = dayStart + dayMs
+        doseRecords.count { it.taken && it.timestamp >= dayStart && it.timestamp < dayEnd }.toFloat()
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
+        if (dailyTakenCounts.any { it > 0f } && dailyTakenCounts.size >= 2) {
+            TrendLineChart(points = dailyTakenCounts, label = trans("adherence_chart_label"), lang = lang)
+        }
         Button(
             onClick = {
                 editingRecord = null; nameStr = ""; dosageStr = ""; freqStr = ""; isActiveState = true
@@ -1692,7 +1714,19 @@ fun SymptomDetailView(viewModel: HealthViewModel, lang: String) {
     var customTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
     val context = LocalContext.current
 
+    // Weekly frequency chart: symptom occurrences per week over the last 4 weeks
+    val weekMs = 7 * 86_400_000L
+    val thisWeekStart = (System.currentTimeMillis() / weekMs) * weekMs
+    val weeklyCounts = (3 downTo 0).map { weeksAgo ->
+        val start = thisWeekStart - weeksAgo * weekMs
+        val end = start + weekMs
+        records.count { it.timestamp >= start && it.timestamp < end }.toFloat()
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
+        if (weeklyCounts.any { it > 0f } && weeklyCounts.size >= 2) {
+            TrendLineChart(points = weeklyCounts, label = trans("symptom_frequency_chart_label"), lang = lang)
+        }
         Button(
             onClick = {
                 editingRecord = null; symptomStr = ""; severityStr = "Mild"; notesStr = ""
@@ -2603,6 +2637,11 @@ fun MoodDetailView(viewModel: HealthViewModel, lang: String, onBack: () -> Unit)
                 Icon(Icons.Default.ArrowBack, contentDescription = trans("back"), tint = MaterialTheme.colorScheme.onBackground)
             }
             Text(trans("mood_log_title"), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+        }
+
+        val moodPoints = records.take(7).reversed().map { it.score.toFloat() }
+        if (moodPoints.size >= 2) {
+            TrendLineChart(points = moodPoints, label = trans("mood_log_title"), lang = lang)
         }
 
         Card(
