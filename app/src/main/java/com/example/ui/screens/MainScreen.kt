@@ -3355,39 +3355,50 @@ fun HealthSummaryView(viewModel: HealthViewModel, lang: String) {
                 Text(trans("diagnostic_summary_title"), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = HighlightTeal)
                 Text(trans("latest_vital_metrics"), fontWeight = FontWeight.Bold, fontSize = 12.sp)
 
+                val notLogged = trans("not_logged")
                 Text(
-                    text = "• Blood Pressure: ${bpLatest?.let { "${it.systolic}/${it.diastolic} mmHg (HR: ${it.heartRate} bpm)" } ?: "Not logged"}\n" +
-                           "• Body Weight: ${weightLatest?.let { "${it.weightKg} kg" } ?: "Not logged"}\n" +
-                           "• Daily Sleep: ${sleepLatest?.let { "${it.hours} hours" } ?: "Not logged"}",
+                    text = "• ${trans("bp_summary_prefix")}: ${bpLatest?.let { "${it.systolic}/${it.diastolic} mmHg (HR: ${it.heartRate} bpm)" } ?: notLogged}\n" +
+                           "• ${trans("weight_summary_prefix")}: ${weightLatest?.let { "${it.weightKg} kg" } ?: notLogged}\n" +
+                           "• ${trans("sleep_summary_prefix")}: ${sleepLatest?.let { "${it.hours} ${trans("hours_unit")}" } ?: notLogged}",
                     fontSize = 14.sp
                 )
 
                 Text(trans("registered_drug_dosage"), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 val activeMeds = medications.filter { it.isActive }
                 if (activeMeds.isEmpty()) {
-                    Text("• No active medications registered in database.", fontSize = 14.sp)
+                    Text("• " + trans("no_active_meds"), fontSize = 14.sp)
                 } else {
                     activeMeds.forEach { m ->
-                        Text("• ${m.name}: Dosage: ${m.dosage} | Freq: ${m.frequency}", fontSize = 14.sp)
+                        Text("• ${m.name}: ${trans("dosage_frequency_label").replace("%1", m.dosage).replace("%2", m.frequency)}", fontSize = 14.sp)
                     }
                 }
 
                 Button(
-                    onClick = { viewModel.printPDFReport(context) },
+                    onClick = { viewModel.exportProfilePdf(context, lang) },
                     modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = HighlightTeal)
                 ) {
-                    Icon(Icons.Default.Print, contentDescription = "Print/Save PDF", tint = SlateDarkBg)
+                    Icon(Icons.Default.Print, contentDescription = trans("export_pdf_doctor"), tint = SlateDarkBg)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(trans("print_save_pdf"), color = SlateDarkBg, fontWeight = FontWeight.Bold)
+                    Text(trans("export_pdf_doctor"), color = SlateDarkBg, fontWeight = FontWeight.Bold)
                 }
 
                 OutlinedButton(
-                    onClick = { viewModel.shareHTMLReport(context) },
+                    onClick = { viewModel.printPDFReport(context, lang) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = HighlightTeal)
                 ) {
-                    Icon(Icons.Default.Share, contentDescription = "Share", tint = HighlightTeal)
+                    Icon(Icons.Default.Print, contentDescription = trans("print_save_pdf"), tint = HighlightTeal)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(trans("print_save_pdf"), color = HighlightTeal, fontWeight = FontWeight.Bold)
+                }
+
+                OutlinedButton(
+                    onClick = { viewModel.shareHTMLReport(context, lang) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = HighlightTeal)
+                ) {
+                    Icon(Icons.Default.Share, contentDescription = trans("share_html_report"), tint = HighlightTeal)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(trans("share_html_report"), color = HighlightTeal, fontWeight = FontWeight.Bold)
                 }
@@ -4136,7 +4147,7 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                 Button(onClick = { viewModel.exportData(context, "TXT") }, modifier = Modifier.weight(1f)) { Text("TXT", fontSize = 11.sp) }
                 Button(onClick = { viewModel.exportData(context, "CSV") }, modifier = Modifier.weight(1f)) { Text("CSV", fontSize = 11.sp) }
                 Button(onClick = { viewModel.exportData(context, "JSON") }, modifier = Modifier.weight(1f)) { Text("JSON", fontSize = 11.sp) }
-                Button(onClick = { viewModel.printPDFReport(context) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)) { Text("PDF", fontSize = 11.sp) }
+                Button(onClick = { viewModel.exportProfilePdf(context, lang) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)) { Text("PDF", fontSize = 11.sp) }
             }
         }
 

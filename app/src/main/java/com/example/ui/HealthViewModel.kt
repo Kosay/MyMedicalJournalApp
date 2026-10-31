@@ -1584,7 +1584,16 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun generateHTMLContent(context: Context): String {
+    fun generateHTMLContent(context: Context, lang: String = "en"): String {
+        fun trans(key: String) = LocalStrings.get(key, lang)
+        // The active profile (0 = main user) drives which patient's name/demographics head the report —
+        // the record tables below (bloodPressureRecords.value etc.) are already filtered to this same profile.
+        val activeMember = if (_activeProfileId.value != 0) {
+            familyMembers.value.firstOrNull { it.id == _activeProfileId.value }
+        } else null
+        val patientName = activeMember?.name ?: emergencyInfo.value?.fullName ?: ""
+        val reportHeightCm = activeMember?.heightCm?.takeIf { it > 0f } ?: heightCm.value
+
         val html = java.lang.StringBuilder()
         html.append("<!DOCTYPE html><html><head><meta charset='utf-8'><title>Health Record Summary</title><style>")
         html.append("body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1E293B; background-color: #FFFFFF; padding: 30px; margin: 0; line-height: 1.5; }")
@@ -1608,38 +1617,57 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         html.append("</style></head><body>")
         
         html.append("<div class='header-container'>")
-        html.append("<h1 class='header-title'>Patient Medical History</h1>")
-        html.append("<p class='header-sub'>Confidential Personal Health Record Ledger</p>")
+        html.append("<h1 class='header-title'>${trans("report_title")}</h1>")
+        html.append("<p class='header-sub'>${trans("report_subtitle")}</p>")
+        if (patientName.isNotEmpty()) {
+            html.append("<p class='header-sub'><strong>${trans("full_name_label_pdf")}:</strong> $patientName</p>")
+        }
         html.append("</div>")
 
         html.append("<div class='meta-info'>")
-        html.append("<span><strong>Report Generated:</strong> ${formatDate(System.currentTimeMillis())}</span>")
-        html.append("<span><strong>App:</strong> My Medical Journal Secure Sync</span>")
+        html.append("<span><strong>${trans("report_generated_label")}:</strong> ${formatDate(System.currentTimeMillis())}</span>")
+        html.append("<span><strong>${trans("report_app_label")}:</strong> My Medical Journal</span>")
         html.append("</div>")
 
-        // 1. Emergency Info
-        emergencyInfo.value?.let { info ->
+        // 1. Emergency / profile info — main user's EmergencyInfo, or the active family member's own record
+        if (activeMember != null) {
             html.append("<div class='section-card'>")
-            html.append("<div class='section-title'>Emergency Contact & Information</div>")
+            html.append("<div class='section-title'>${trans("emergency_section_title")}</div>")
             html.append("<table>")
-            html.append("<tr><td><strong>Full Name:</strong></td><td>${info.fullName}</td><td><strong>Blood Type:</strong></td><td><span class='badge badge-critical'>${info.bloodType}</span></td></tr>")
-            val sexLabel = if (info.sex.isNotEmpty()) info.sex else "Not specified"
-            val childrenLabel = if (info.sex == "Female") "${info.numberOfChildren}" else "N/A"
-            html.append("<tr><td><strong>Sex:</strong></td><td>$sexLabel</td><td><strong>Number of Children:</strong></td><td>$childrenLabel</td></tr>")
-            html.append("<tr><td><strong>Chronic Conditions:</strong></td><td>${info.chronicConditions}</td><td><strong>Known Allergies:</strong></td><td>${info.allergies}</td></tr>")
-            html.append("<tr><td><strong>Emergency Contact:</strong></td><td>${info.contactName}</td><td><strong>Contact Phone:</strong></td><td>${info.contactPhone}</td></tr>")
-            if (info.additionalNotes.isNotEmpty()) {
-                html.append("<tr><td><strong>Clinical Notes:</strong></td><td colspan='3'>${info.additionalNotes}</td></tr>")
+            html.append("<tr><td><strong>${trans("full_name_label_pdf")}:</strong></td><td>${activeMember.name}</td><td><strong>${trans("blood_type_label_pdf")}:</strong></td><td><span class='badge badge-critical'>${activeMember.bloodType}</span></td></tr>")
+            val sexLabel = activeMember.sex.ifEmpty { trans("not_specified_pdf") }
+            html.append("<tr><td><strong>${trans("sex_label_pdf")}:</strong></td><td>$sexLabel</td><td><strong>${trans("date_of_birth")}:</strong></td><td>${activeMember.dateOfBirth}</td></tr>")
+            html.append("<tr><td><strong>${trans("chronic_conditions_label_pdf")}:</strong></td><td>${activeMember.chronicConditions}</td><td><strong>${trans("allergies_label_pdf")}:</strong></td><td>${activeMember.allergies}</td></tr>")
+            html.append("<tr><td><strong>${trans("emergency_contact_label_pdf")}:</strong></td><td>${activeMember.emergencyContactName}</td><td><strong>${trans("contact_phone_label_pdf")}:</strong></td><td>${activeMember.emergencyContactPhone}</td></tr>")
+            if (activeMember.notes.isNotEmpty()) {
+                html.append("<tr><td><strong>${trans("notes")}:</strong></td><td colspan='3'>${activeMember.notes}</td></tr>")
             }
             html.append("</table>")
             html.append("</div>")
+        } else {
+            emergencyInfo.value?.let { info ->
+                html.append("<div class='section-card'>")
+                html.append("<div class='section-title'>${trans("emergency_section_title")}</div>")
+                html.append("<table>")
+                html.append("<tr><td><strong>${trans("full_name_label_pdf")}:</strong></td><td>${info.fullName}</td><td><strong>${trans("blood_type_label_pdf")}:</strong></td><td><span class='badge badge-critical'>${info.bloodType}</span></td></tr>")
+                val sexLabel = info.sex.ifEmpty { trans("not_specified_pdf") }
+                val childrenLabel = if (info.sex == "Female") "${info.numberOfChildren}" else trans("na_label_pdf")
+                html.append("<tr><td><strong>${trans("sex_label_pdf")}:</strong></td><td>$sexLabel</td><td><strong>${trans("number_of_children_label_pdf")}:</strong></td><td>$childrenLabel</td></tr>")
+                html.append("<tr><td><strong>${trans("chronic_conditions_label_pdf")}:</strong></td><td>${info.chronicConditions}</td><td><strong>${trans("allergies_label_pdf")}:</strong></td><td>${info.allergies}</td></tr>")
+                html.append("<tr><td><strong>${trans("emergency_contact_label_pdf")}:</strong></td><td>${info.contactName}</td><td><strong>${trans("contact_phone_label_pdf")}:</strong></td><td>${info.contactPhone}</td></tr>")
+                if (info.additionalNotes.isNotEmpty()) {
+                    html.append("<tr><td><strong>${trans("notes")}:</strong></td><td colspan='3'>${info.additionalNotes}</td></tr>")
+                }
+                html.append("</table>")
+                html.append("</div>")
+            }
         }
 
         // 2. Blood Pressure Logs
         val bpList = bloodPressureRecords.value
         if (bpList.isNotEmpty()) {
             html.append("<div class='section-card'>")
-            html.append("<div class='section-title'>Blood Pressure Logs</div>")
+            html.append("<div class='section-title'>${trans("section_bp_logs")}</div>")
             html.append("<table><tr><th>Date/Time</th><th>Reading (mmHg)</th><th>Heart Rate (bpm)</th><th>Status</th><th>Clinical Comments</th></tr>")
             bpList.forEach {
                 val statusBadge = if (it.systolic >= 140 || it.diastolic >= 90) {
@@ -1661,7 +1689,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         val sugarList = bloodSugarRecords.value
         if (sugarList.isNotEmpty()) {
             html.append("<div class='section-card'>")
-            html.append("<div class='section-title'>Blood Sugar Logs (Glucose)</div>")
+            html.append("<div class='section-title'>${trans("section_sugar_logs")}</div>")
             html.append("<table><tr><th>Date/Time</th><th>Value</th><th>Category</th><th>Status</th><th>Notes</th></tr>")
             sugarList.forEach {
                 val statusBadge = if (it.value >= 140) {
@@ -1681,10 +1709,10 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         val weightList = weightRecords.value
         if (weightList.isNotEmpty()) {
             html.append("<div class='section-card'>")
-            html.append("<div class='section-title'>Body Weight & BMI</div>")
+            html.append("<div class='section-title'>${trans("section_weight_bmi")}</div>")
             html.append("<table><tr><th>Date/Time</th><th>Weight</th><th>Calculated BMI</th><th>Status</th><th>Notes</th></tr>")
             weightList.forEach {
-                val heightM = heightCm.value / 100f
+                val heightM = reportHeightCm / 100f
                 val bmi = if (heightM > 0) it.weightKg / (heightM * heightM) else 0f
                 val bmiStr = if (bmi > 0) String.format(Locale.US, "%.1f", bmi) else "N/A"
                 val bmiStatus = if (bmi <= 0) ""
@@ -1703,7 +1731,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         val medList = medications.value
         if (medList.isNotEmpty()) {
             html.append("<div class='section-card'>")
-            html.append("<div class='section-title'>Registered Medications</div>")
+            html.append("<div class='section-title'>${trans("section_medications")}</div>")
             html.append("<table><tr><th>Medication Name</th><th>Dosage Form</th><th>Frequency Details</th><th>Therapeutic Status</th></tr>")
             medList.forEach {
                 val statusBadge = if (it.isActive) "<span class='badge badge-active'>Active</span>" else "<span class='badge badge-inactive'>Inactive</span>"
@@ -1717,7 +1745,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         val symptomList = symptoms.value
         if (symptomList.isNotEmpty()) {
             html.append("<div class='section-card'>")
-            html.append("<div class='section-title'>Symptom Records</div>")
+            html.append("<div class='section-title'>${trans("section_symptoms")}</div>")
             html.append("<table><tr><th>Date/Time</th><th>Symptom Name</th><th>Reported Severity</th><th>Patient Notes</th></tr>")
             symptomList.forEach {
                 val sevBadge = when(it.severity.lowercase(Locale.US)) {
@@ -1735,7 +1763,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         val sleepList = sleepRecords.value
         if (sleepList.isNotEmpty()) {
             html.append("<div class='section-card'>")
-            html.append("<div class='section-title'>Sleep Tracking Logs</div>")
+            html.append("<div class='section-title'>${trans("section_sleep")}</div>")
             html.append("<table><tr><th>Date/Time</th><th>Sleep Duration</th><th>Status</th><th>Notes</th></tr>")
             sleepList.forEach {
                 val statusBadge = if (it.hours < 6f) "<span class='badge badge-critical'>Sleep Deprived</span>"
@@ -1751,7 +1779,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         val labs = labResults.value
         if (labs.isNotEmpty()) {
             html.append("<div class='section-card'>")
-            html.append("<div class='section-title'>Laboratory Diagnostic Results</div>")
+            html.append("<div class='section-title'>${trans("section_labs")}</div>")
             html.append("<table><tr><th>Date/Time</th><th>Test Parameter</th><th>Value Measured</th><th>Reference Standard</th></tr>")
             labs.forEach {
                 html.append("<tr><td>${formatDate(it.timestamp)}</td><td><strong>${it.testName}</strong></td><td><strong>${it.value} ${it.unit}</strong></td><td>${it.referenceRange}</td></tr>")
@@ -1764,7 +1792,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         val lifestyle = lifestyleRecords.value
         if (lifestyle.isNotEmpty()) {
             html.append("<div class='section-card'>")
-            html.append("<div class='section-title'>Lifestyle & Activity Records</div>")
+            html.append("<div class='section-title'>${trans("section_lifestyle")}</div>")
             html.append("<table><tr><th>Date/Time</th><th>Category</th><th>Registered Amount</th></tr>")
             lifestyle.forEach {
                 html.append("<tr><td>${formatDate(it.timestamp)}</td><td><strong>${it.type.replaceFirstChar { c -> c.uppercase() }}</strong></td><td>${it.amount}</td></tr>")
@@ -1773,22 +1801,23 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
             html.append("</div>")
         }
 
-        html.append(attachmentsHtmlSection(context))
+        html.append(attachmentsHtmlSection(context, lang))
 
-        html.append("<div class='footer'>Disclaimer: Generated securely by Patient Medical Journal App. This document is intended as a clinical summaries ledger and does not replace professional diagnostic opinion or counsel.</div>")
+        html.append("<div class='footer'>${trans("report_disclaimer")}</div>")
         html.append("</body></html>")
         return html.toString()
     }
 
     // Embeds attached images and PDFs (e.g. lab test reports) as inline images so they
     // appear as extra pages when this report is printed/saved to a single PDF.
-    private fun attachmentsHtmlSection(context: Context): String {
+    private fun attachmentsHtmlSection(context: Context, lang: String = "en"): String {
+        fun trans(key: String) = LocalStrings.get(key, lang)
         val items = attachments.value
         if (items.isEmpty()) return ""
 
         val sb = StringBuilder()
         sb.append("<div class='section-card' style='page-break-before: always;'>")
-        sb.append("<div class='section-title'>Attached Lab Documents & Images</div>")
+        sb.append("<div class='section-title'>${trans("section_attachments")}</div>")
         items.forEach { att ->
             try {
                 val uri = Uri.parse(att.fileUri)
@@ -1828,7 +1857,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                 sb.append("</div>")
             } catch (e: Exception) {
                 Log.e("PDFAttach", "Failed to embed attachment '${att.title}': ${e.localizedMessage}")
-                sb.append("<p style='color:#991B1B;font-size:12px;'>Could not load attachment: ${att.title}</p>")
+                sb.append("<p style='color:#991B1B;font-size:12px;'>${trans("attachment_load_failed")}: ${att.title}</p>")
                 sb.append("</div>")
             }
         }
@@ -1836,10 +1865,10 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         return sb.toString()
     }
 
-    fun printPDFReport(context: Context) {
+    fun printPDFReport(context: Context, lang: String = "en") {
         viewModelScope.launch {
             try {
-                val htmlContent = withContext(Dispatchers.IO) { generateHTMLContent(context) }
+                val htmlContent = withContext(Dispatchers.IO) { generateHTMLContent(context, lang) }
                 val webView = android.webkit.WebView(context)
                 webView.webViewClient = object : android.webkit.WebViewClient() {
                     override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
@@ -1864,10 +1893,76 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun shareHTMLReport(context: Context) {
+    /**
+     * One-tap PDF export: drives the WebView's PrintDocumentAdapter directly to a file instead
+     * of handing it to the OS PrintManager, so the user gets a real .pdf attachment immediately
+     * instead of having to navigate the system print dialog and manually choose "Save as PDF".
+     */
+    fun exportProfilePdf(context: Context, lang: String = "en") {
+        viewModelScope.launch {
+            try {
+                val htmlContent = withContext(Dispatchers.IO) { generateHTMLContent(context, lang) }
+                val webView = android.webkit.WebView(context)
+                webView.webViewClient = object : android.webkit.WebViewClient() {
+                    override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
+                        val jobName = "HealthSummary_${System.currentTimeMillis()}"
+                        val adapter = webView.createPrintDocumentAdapter(jobName)
+                        val pdfFile = File(context.cacheDir, "$jobName.pdf")
+                        val attrs = android.print.PrintAttributes.Builder()
+                            .setMediaSize(android.print.PrintAttributes.MediaSize.ISO_A4)
+                            .setResolution(android.print.PrintAttributes.Resolution("pdf", "pdf", 300, 300))
+                            .setMinMargins(android.print.PrintAttributes.Margins.NO_MARGINS)
+                            .build()
+
+                        adapter.onLayout(
+                            null, attrs, null,
+                            object : android.print.PrintDocumentAdapter.LayoutResultCallback() {
+                                override fun onLayoutFinished(info: android.print.PrintDocumentInfo?, changed: Boolean) {
+                                    try {
+                                        val fd = android.os.ParcelFileDescriptor.open(
+                                            pdfFile,
+                                            android.os.ParcelFileDescriptor.MODE_WRITE_ONLY or
+                                                android.os.ParcelFileDescriptor.MODE_CREATE or
+                                                android.os.ParcelFileDescriptor.MODE_TRUNCATE
+                                        )
+                                        adapter.onWrite(
+                                            arrayOf(android.print.PageRange.ALL_PAGES),
+                                            fd,
+                                            android.os.CancellationSignal(),
+                                            object : android.print.PrintDocumentAdapter.WriteResultCallback() {
+                                                override fun onWriteFinished(pages: Array<out android.print.PageRange>?) {
+                                                    fd.close()
+                                                    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", pdfFile)
+                                                    shareFile(context, uri, "application/pdf", LocalStrings.get("export_pdf_doctor", lang))
+                                                }
+                                                override fun onWriteFailed(error: CharSequence?) {
+                                                    Log.e("PDFExport", "Write failed: $error")
+                                                }
+                                            }
+                                        )
+                                    } catch (e: Exception) {
+                                        Log.e("PDFExport", "onLayoutFinished error: ${e.localizedMessage}")
+                                    }
+                                }
+                                override fun onLayoutFailed(error: CharSequence?) {
+                                    Log.e("PDFExport", "Layout failed: $error")
+                                }
+                            },
+                            null
+                        )
+                    }
+                }
+                webView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null)
+            } catch (e: Exception) {
+                Log.e("PDFExport", "Error exporting PDF: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    fun shareHTMLReport(context: Context, lang: String = "en") {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val html = generateHTMLContent(context)
+                val html = generateHTMLContent(context, lang)
 
                 val filename = "medical_journal_report_${System.currentTimeMillis()}.html"
                 val cacheFile = File(context.cacheDir, filename)
@@ -1879,16 +1974,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                     cacheFile
                 )
 
-                val intent = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/html"
-                    putExtra(Intent.EXTRA_STREAM, uri)
-                    putExtra(Intent.EXTRA_SUBJECT, "Health Record HTML Summary")
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                }
-
-                withContext(Dispatchers.Main) {
-                    context.startActivity(Intent.createChooser(intent, "Share Health Summary via..."))
-                }
+                shareFile(context, uri, "text/html", LocalStrings.get("report_title", lang))
             } catch (e: Exception) {
                 Log.e("ReportHTML", e.localizedMessage ?: "HTML Share Error")
             }
