@@ -58,6 +58,17 @@ jobs:
             | grep -oP '(?<=<version>)[^<]+' | sort -V | tail -20 \
             || echo "Google Maven fetch failed"
 
+      - name: Run unit tests
+        run: gradle testDebugUnitTest --no-daemon
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results-${{ github.event.pull_request.number || github.run_number }}
+          path: app/build/reports/tests/testDebugUnitTest/
+          retention-days: 7
+
       - name: Build signed debug APK
         run: gradle assembleDebug --no-daemon
 
