@@ -388,7 +388,12 @@ object LocalStrings {
             "hours_unit" to "hours",
             "no_active_meds" to "No active medications registered in database.",
             "adherence_chart_label" to "Doses Taken (Last 7 Days)",
-            "symptom_frequency_chart_label" to "Symptom Occurrences (Last 4 Weeks)"
+            "symptom_frequency_chart_label" to "Symptom Occurrences (Last 4 Weeks)",
+            "app_lock_confirm_pin" to "Confirm PIN",
+            "app_lock_pin_mismatch" to "PINs don't match. Try again.",
+            "app_lock_set_pin_subtitle" to "Choose a 4-digit PIN to protect your health records",
+            "continue_label" to "Continue",
+            "unlock" to "Unlock"
         ),
         "ar" to mapOf(
             "dashboard" to "لوحة البيانات",
@@ -776,7 +781,12 @@ object LocalStrings {
             "hours_unit" to "ساعات",
             "no_active_meds" to "لا توجد أدوية نشطة مسجلة في قاعدة البيانات.",
             "adherence_chart_label" to "الجرعات المأخوذة (آخر 7 أيام)",
-            "symptom_frequency_chart_label" to "تكرار الأعراض (آخر 4 أسابيع)"
+            "symptom_frequency_chart_label" to "تكرار الأعراض (آخر 4 أسابيع)",
+            "app_lock_confirm_pin" to "تأكيد رمز PIN",
+            "app_lock_pin_mismatch" to "رمزا PIN غير متطابقين. حاول مرة أخرى.",
+            "app_lock_set_pin_subtitle" to "اختر رمز PIN من 4 أرقام لحماية سجلاتك الصحية",
+            "continue_label" to "استمرار",
+            "unlock" to "فتح القفل"
         )
     )
 

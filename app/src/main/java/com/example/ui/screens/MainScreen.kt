@@ -4186,6 +4186,52 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
             }
         }
 
+        // App Lock (biometric / PIN)
+        item {
+            val appLockEnabled by viewModel.appLockEnabled.collectAsState()
+            var showSetPinDialog by remember { mutableStateOf(false) }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f))
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(trans("app_lock_enable_toggle"), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Switch(
+                        checked = appLockEnabled,
+                        onCheckedChange = { checked ->
+                            if (checked) {
+                                if (viewModel.hasAppLockPin()) {
+                                    viewModel.setAppLockEnabled(true)
+                                } else {
+                                    showSetPinDialog = true
+                                }
+                            } else {
+                                viewModel.setAppLockEnabled(false)
+                            }
+                        },
+                        colors = SwitchDefaults.colors(checkedThumbColor = HighlightTeal, checkedTrackColor = HighlightTeal.copy(alpha = 0.4f))
+                    )
+                }
+            }
+
+            if (showSetPinDialog) {
+                SetAppLockPinDialog(
+                    viewModel = viewModel,
+                    lang = lang,
+                    onDone = { success ->
+                        showSetPinDialog = false
+                        if (success) viewModel.setAppLockEnabled(true)
+                    }
+                )
+            }
+        }
+
         // Height BMI setup row matching Screenshot 5!
         item {
             Card(

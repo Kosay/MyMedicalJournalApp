@@ -3,7 +3,6 @@ package com.example
 import android.Manifest
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.enableEdgeToEdge
@@ -17,16 +16,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModelProvider
 import com.example.ui.HealthViewModel
 import com.example.ui.HealthViewModelFactory
+import com.example.ui.screens.AppLockScreen
 import com.example.ui.screens.MainScreen
 import com.example.ui.screens.OnboardingScreen
 import com.example.ui.screens.SplashScreen
 import com.example.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.delay
 
-class MainActivity : ComponentActivity() {
+// FragmentActivity (not plain ComponentActivity) is required by BiometricPrompt for the app lock.
+class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -58,12 +60,15 @@ class MainActivity : ComponentActivity() {
 
             MyApplicationTheme(darkTheme = isDark) {
                 val lang by viewModel.language.collectAsState()
+                val appLockEnabled by viewModel.appLockEnabled.collectAsState()
                 var showSplash by remember { mutableStateOf(true) }
                 var showOnboarding by remember { mutableStateOf(false) }
+                var isLocked by remember { mutableStateOf(false) }
 
                 LaunchedEffect(Unit) {
                     delay(2800)
                     showOnboarding = !viewModel.onboardingCompleted
+                    isLocked = !showOnboarding && appLockEnabled && viewModel.hasAppLockPin()
                     showSplash = false
                 }
 
@@ -74,6 +79,12 @@ class MainActivity : ComponentActivity() {
                         viewModel = viewModel,
                         lang = lang,
                         onFinished = { showOnboarding = false }
+                    )
+                } else if (isLocked) {
+                    AppLockScreen(
+                        viewModel = viewModel,
+                        lang = lang,
+                        onUnlocked = { isLocked = false }
                     )
                 } else {
                     MainScreen(viewModel = viewModel)

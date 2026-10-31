@@ -701,6 +701,36 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         sharedPrefs.edit().putBoolean("onboarding_completed", true).apply()
     }
 
+    // --- App Lock (biometric / PIN) ---
+    private val _appLockEnabled = MutableStateFlow(sharedPrefs.getBoolean("app_lock_enabled", false))
+    val appLockEnabled: StateFlow<Boolean> = _appLockEnabled.asStateFlow()
+
+    fun setAppLockEnabled(enabled: Boolean) {
+        _appLockEnabled.value = enabled
+        sharedPrefs.edit().putBoolean("app_lock_enabled", enabled).apply()
+    }
+
+    fun hasAppLockPin(): Boolean = sharedPrefs.getString("app_lock_pin_hash", null) != null
+
+    private fun hashPin(pin: String): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256").digest(pin.toByteArray())
+        return digest.joinToString("") { "%02x".format(it) }
+    }
+
+    fun setAppLockPin(pin: String) {
+        sharedPrefs.edit().putString("app_lock_pin_hash", hashPin(pin)).apply()
+    }
+
+    fun verifyAppLockPin(pin: String): Boolean {
+        val stored = sharedPrefs.getString("app_lock_pin_hash", null) ?: return false
+        return stored == hashPin(pin)
+    }
+
+    fun clearAppLockPin() {
+        sharedPrefs.edit().remove("app_lock_pin_hash").apply()
+        setAppLockEnabled(false)
+    }
+
     fun completeOnboarding(info: EmergencyInfo, heightCm: Float, weightKg: Float) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertEmergencyInfo(info)
