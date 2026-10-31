@@ -3508,13 +3508,25 @@ fun HealthSummaryView(viewModel: HealthViewModel, lang: String) {
 @Composable
 fun SearchJournalView(viewModel: HealthViewModel, lang: String) {
     val q by viewModel.searchQuery.collectAsState()
-    
+
     val bpList by viewModel.bloodPressureRecords.collectAsState()
     val weightList by viewModel.weightRecords.collectAsState()
     val symptomsList by viewModel.symptoms.collectAsState()
     val medsList by viewModel.medications.collectAsState()
+    val labsList by viewModel.labResults.collectAsState()
+    val sleepList by viewModel.sleepRecords.collectAsState()
+    val heightList by viewModel.heightRecords.collectAsState()
+    val periodList by viewModel.periodRecords.collectAsState()
+    val moodList by viewModel.moodRecords.collectAsState()
+    val appointmentsList by viewModel.appointments.collectAsState()
+    val familyList by viewModel.familyMembers.collectAsState()
+    val attachmentsList by viewModel.attachments.collectAsState()
 
     fun trans(key: String): String = LocalStrings.get(key, lang)
+    fun matches(vararg fields: String): Boolean {
+        val needle = q.lowercase(Locale.ROOT)
+        return fields.any { it.lowercase(Locale.ROOT).contains(needle) }
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         OutlinedTextField(
@@ -3522,7 +3534,7 @@ fun SearchJournalView(viewModel: HealthViewModel, lang: String) {
             onValueChange = { viewModel.updateSearchQuery(it) },
             label = { Text(trans("search_hint_full")) },
             modifier = Modifier.fillMaxWidth(),
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search Icon") }
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = trans("search_hint_full")) }
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -3536,39 +3548,99 @@ fun SearchJournalView(viewModel: HealthViewModel, lang: String) {
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Search in blood pressure comments
-                val filteredBp = bpList.filter { it.notes.lowercase(Locale.ROOT).contains(q.lowercase(Locale.ROOT)) }
+                val filteredBp = bpList.filter { matches(it.notes) }
                 if (filteredBp.isNotEmpty()) {
                     item { Text(trans("search_section_bp"), fontWeight = FontWeight.Bold, color = HighlightTeal, fontSize = 12.sp) }
                     items(filteredBp) { r ->
-                        SearchMatchRow(title = "BP Reading: ${r.systolic}/${r.diastolic}", text = r.notes, date = viewModel.formatDate(r.timestamp))
+                        SearchMatchRow(title = "${trans("blood_pressure")}: ${r.systolic}/${r.diastolic}", text = r.notes, date = viewModel.formatDate(r.timestamp))
                     }
                 }
 
-                // Search in Weight Logs
-                val filteredWeight = weightList.filter { it.notes.lowercase(Locale.ROOT).contains(q.lowercase(Locale.ROOT)) }
+                val filteredWeight = weightList.filter { matches(it.notes) }
                 if (filteredWeight.isNotEmpty()) {
                     item { Text(trans("search_section_weight"), fontWeight = FontWeight.Bold, color = HighlightTeal, fontSize = 12.sp) }
                     items(filteredWeight) { r ->
-                        SearchMatchRow(title = "Weight: ${r.weightKg} kg", text = r.notes, date = viewModel.formatDate(r.timestamp))
+                        SearchMatchRow(title = "${trans("weight")}: ${r.weightKg} kg", text = r.notes, date = viewModel.formatDate(r.timestamp))
                     }
                 }
 
-                // Search in Medicines
-                val filteredMeds = medsList.filter { it.name.lowercase(Locale.ROOT).contains(q.lowercase(Locale.ROOT)) || it.dosage.lowercase(Locale.ROOT).contains(q.lowercase(Locale.ROOT)) }
+                val filteredMeds = medsList.filter { matches(it.name, it.dosage) }
                 if (filteredMeds.isNotEmpty()) {
                     item { Text(trans("search_section_medication"), fontWeight = FontWeight.Bold, color = HighlightTeal, fontSize = 12.sp) }
                     items(filteredMeds) { r ->
-                        SearchMatchRow(title = r.name, text = "Dosage: ${r.dosage} | Frequency: ${r.frequency}", date = "")
+                        SearchMatchRow(title = r.name, text = trans("dosage_frequency_label").replace("%1", r.dosage).replace("%2", r.frequency), date = "")
                     }
                 }
 
-                // Search in Symptoms
-                val filteredSymptoms = symptomsList.filter { it.symptomName.lowercase(Locale.ROOT).contains(q.lowercase(Locale.ROOT)) || it.notes.lowercase(Locale.ROOT).contains(q.lowercase(Locale.ROOT)) }
+                val filteredSymptoms = symptomsList.filter { matches(it.symptomName, it.notes) }
                 if (filteredSymptoms.isNotEmpty()) {
                     item { Text(trans("search_section_symptom"), fontWeight = FontWeight.Bold, color = HighlightTeal, fontSize = 12.sp) }
                     items(filteredSymptoms) { r ->
                         SearchMatchRow(title = "${r.symptomName} (${r.severity})", text = r.notes, date = viewModel.formatDate(r.timestamp))
+                    }
+                }
+
+                val filteredLabs = labsList.filter { matches(it.testName, it.referenceRange) }
+                if (filteredLabs.isNotEmpty()) {
+                    item { Text(trans("search_section_lab"), fontWeight = FontWeight.Bold, color = HighlightTeal, fontSize = 12.sp) }
+                    items(filteredLabs) { r ->
+                        SearchMatchRow(title = "${r.testName}: ${r.value} ${r.unit}", text = r.referenceRange, date = viewModel.formatDate(r.timestamp))
+                    }
+                }
+
+                val filteredSleep = sleepList.filter { matches(it.notes) }
+                if (filteredSleep.isNotEmpty()) {
+                    item { Text(trans("search_section_sleep"), fontWeight = FontWeight.Bold, color = HighlightTeal, fontSize = 12.sp) }
+                    items(filteredSleep) { r ->
+                        SearchMatchRow(title = "${trans("sleep")}: ${r.hours} ${trans("hours_unit")}", text = r.notes, date = viewModel.formatDate(r.timestamp))
+                    }
+                }
+
+                val filteredHeight = heightList.filter { matches(it.notes) }
+                if (filteredHeight.isNotEmpty()) {
+                    item { Text(trans("search_section_height"), fontWeight = FontWeight.Bold, color = HighlightTeal, fontSize = 12.sp) }
+                    items(filteredHeight) { r ->
+                        SearchMatchRow(title = "${trans("height_track")}: ${r.heightCm} cm", text = r.notes, date = viewModel.formatDate(r.timestamp))
+                    }
+                }
+
+                val filteredPeriod = periodList.filter { matches(it.notes, it.flow) }
+                if (filteredPeriod.isNotEmpty()) {
+                    item { Text(trans("search_section_period"), fontWeight = FontWeight.Bold, color = HighlightTeal, fontSize = 12.sp) }
+                    items(filteredPeriod) { r ->
+                        SearchMatchRow(title = trans("period_track"), text = r.notes, date = viewModel.formatDateOnly(r.startTimestamp))
+                    }
+                }
+
+                val filteredMood = moodList.filter { matches(it.notes) }
+                if (filteredMood.isNotEmpty()) {
+                    item { Text(trans("search_section_mood"), fontWeight = FontWeight.Bold, color = HighlightTeal, fontSize = 12.sp) }
+                    items(filteredMood) { r ->
+                        SearchMatchRow(title = "${trans("mood_log_title")}: ${r.score}/5", text = r.notes, date = viewModel.formatDate(r.timestamp))
+                    }
+                }
+
+                val filteredAppointments = appointmentsList.filter { matches(it.title, it.notes) }
+                if (filteredAppointments.isNotEmpty()) {
+                    item { Text(trans("search_section_appointment"), fontWeight = FontWeight.Bold, color = HighlightTeal, fontSize = 12.sp) }
+                    items(filteredAppointments) { r ->
+                        SearchMatchRow(title = r.title, text = r.notes, date = viewModel.formatDate(r.dateTimestamp))
+                    }
+                }
+
+                val filteredFamily = familyList.filter { matches(it.name, it.relationship, it.notes) }
+                if (filteredFamily.isNotEmpty()) {
+                    item { Text(trans("search_section_family"), fontWeight = FontWeight.Bold, color = HighlightTeal, fontSize = 12.sp) }
+                    items(filteredFamily) { r ->
+                        SearchMatchRow(title = r.name, text = r.relationship, date = "")
+                    }
+                }
+
+                val filteredAttachments = attachmentsList.filter { matches(it.title, it.notes) }
+                if (filteredAttachments.isNotEmpty()) {
+                    item { Text(trans("search_section_attachment"), fontWeight = FontWeight.Bold, color = HighlightTeal, fontSize = 12.sp) }
+                    items(filteredAttachments) { r ->
+                        SearchMatchRow(title = r.title, text = r.notes, date = viewModel.formatDate(r.timestamp))
                     }
                 }
             }
