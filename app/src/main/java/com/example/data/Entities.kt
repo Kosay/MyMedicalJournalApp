@@ -96,7 +96,8 @@ data class EmergencyInfo(
     val contactPhone: String = "",
     val additionalNotes: String = "",
     val sex: String = "",           // "Male" or "Female"
-    val numberOfChildren: Int = 0
+    val numberOfChildren: Int = 0,
+    val dateOfBirth: String = ""    // DD/MM/YYYY, same format as FamilyMemberProfile.dateOfBirth
 )
 
 @Entity(tableName = "blood_sugar_records")

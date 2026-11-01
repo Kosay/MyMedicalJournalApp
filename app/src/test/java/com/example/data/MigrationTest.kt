@@ -15,7 +15,7 @@ import org.robolectric.annotation.Config
 import java.io.File
 
 /**
- * Regression tests for the AppDatabase migration chain (v2 -> v9).
+ * Regression tests for the AppDatabase migration chain (v2 -> v10).
  *
  * These deliberately avoid androidx.room:room-testing's MigrationTestHelper, since that API
  * requires exported schema JSON files (exportSchema = true + a wired room.schemaLocation KSP
@@ -76,14 +76,14 @@ class MigrationTest {
             .addMigrations(
                 AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5,
                 AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8,
-                AppDatabase.MIGRATION_8_9
+                AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10
             )
             // Deliberately no fallbackToDestructiveMigration() — a missing/bad migration must
             // throw here, not silently wipe data, exactly like it must in production.
             .build()
 
     @Test
-    fun `full migration chain v2 to v9 preserves data and produces a valid schema`() {
+    fun `full migration chain v2 to v10 preserves data and produces a valid schema`() {
         val dbFile = createV2Database()
         val db = openMigratedDatabase(dbFile)
 
@@ -99,11 +99,12 @@ class MigrationTest {
             assertEquals("pre-migration reading", c.getString(2))
             assertEquals(0, c.getInt(3)) // profileId defaulted to 0 by MIGRATION_6_7
         }
-        sqliteDb.query("SELECT fullName, sex, numberOfChildren FROM emergency_info WHERE id = 1").use { c ->
+        sqliteDb.query("SELECT fullName, sex, numberOfChildren, dateOfBirth FROM emergency_info WHERE id = 1").use { c ->
             assertTrue(c.moveToFirst())
             assertEquals("Test Patient", c.getString(0))
             assertEquals("", c.getString(1)) // sex defaulted to '' by MIGRATION_2_3
             assertEquals(0, c.getInt(2))
+            assertEquals("", c.getString(3)) // dateOfBirth defaulted to '' by MIGRATION_9_10
         }
         // This round's migration (MIGRATION_8_9): new medication columns with correct defaults.
         sqliteDb.query("SELECT name, reminderTimeMinutes, reminderEnabled FROM medications WHERE id = 1").use { c ->
@@ -139,7 +140,7 @@ class MigrationTest {
             .addMigrations(
                 AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5,
                 AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8,
-                AppDatabase.MIGRATION_8_9
+                AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10
             )
             .build()
 
@@ -148,6 +149,28 @@ class MigrationTest {
             assertEquals("Jane Doe", c.getString(0))
             assertEquals("", c.getString(1))
             assertEquals(0, c.getInt(2))
+        }
+        roomDb.close()
+    }
+
+    @Test
+    fun `MIGRATION_9_10 alone adds dateOfBirth with default`() {
+        val dbFile = context.getDatabasePath(dbName)
+        val db = SQLiteDatabase.openOrCreateDatabase(dbFile, null)
+        db.execSQL("CREATE TABLE emergency_info (id INTEGER PRIMARY KEY NOT NULL, fullName TEXT NOT NULL DEFAULT '', bloodType TEXT NOT NULL DEFAULT '', chronicConditions TEXT NOT NULL DEFAULT '', allergies TEXT NOT NULL DEFAULT '', contactName TEXT NOT NULL DEFAULT '', contactPhone TEXT NOT NULL DEFAULT '', additionalNotes TEXT NOT NULL DEFAULT '', sex TEXT NOT NULL DEFAULT '', numberOfChildren INTEGER NOT NULL DEFAULT 0)")
+        db.execSQL("INSERT INTO emergency_info (id, fullName, sex) VALUES (1, 'Existing User', 'Female')")
+        db.version = 9
+        db.close()
+
+        val roomDb = Room.databaseBuilder(context, AppDatabase::class.java, dbFile.absolutePath)
+            .addMigrations(AppDatabase.MIGRATION_9_10)
+            .build()
+
+        roomDb.openHelper.writableDatabase.query("SELECT fullName, sex, dateOfBirth FROM emergency_info WHERE id = 1").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("Existing User", c.getString(0))
+            assertEquals("Female", c.getString(1))
+            assertEquals("", c.getString(2))
         }
         roomDb.close()
     }

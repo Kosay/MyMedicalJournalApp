@@ -420,7 +420,7 @@ fun getBloodPressureStatusColor(systolic: Int, diastolic: Int): Color {
 
 // Helpers for Blood Sugar Classifications
 fun getBloodSugarStatus(value: Float, category: String, lang: String, unit: String = "mg/dL"): String {
-    val mgDl = if (unit == "mmol/L") value * 18.018f else value
+    val mgDl = if (unit == "mmol/L") value * com.example.ui.LabUnitConversion.GLUCOSE_MMOL_TO_MGDL else value
     val en = lang == "en"
     return when (category.lowercase(Locale.US)) {
         "fasting" -> {
@@ -450,7 +450,7 @@ fun getBloodSugarStatus(value: Float, category: String, lang: String, unit: Stri
 }
 
 fun getBloodSugarStatusColor(value: Float, category: String, unit: String = "mg/dL"): Color {
-    val mgDl = if (unit == "mmol/L") value * 18.018f else value
+    val mgDl = if (unit == "mmol/L") value * com.example.ui.LabUnitConversion.GLUCOSE_MMOL_TO_MGDL else value
     return when (category.lowercase(Locale.US)) {
         "fasting" -> {
             when {
@@ -3455,6 +3455,8 @@ fun EmergencyCardView(viewModel: HealthViewModel, lang: String) {
     var notes by remember { mutableStateOf("") }
     var sex by remember { mutableStateOf("") }
     var childrenStr by remember { mutableStateOf("0") }
+    var dateOfBirth by remember { mutableStateOf("") }
+    val context = LocalContext.current
 
     LaunchedEffect(info) {
         info?.let {
@@ -3467,6 +3469,7 @@ fun EmergencyCardView(viewModel: HealthViewModel, lang: String) {
             notes = it.additionalNotes
             sex = it.sex
             childrenStr = it.numberOfChildren.toString()
+            dateOfBirth = it.dateOfBirth
         }
     }
 
@@ -3480,10 +3483,45 @@ fun EmergencyCardView(viewModel: HealthViewModel, lang: String) {
     ) {
         item {
             Text(
-                "This card displays critical medical context if first responders need to view your records instantly.",
+                trans("emergency_card_disclaimer"),
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+
+        item {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = dateOfBirth,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text(trans("date_of_birth")) },
+                    trailingIcon = { Icon(Icons.Default.DateRange, null, tint = HighlightTeal) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clickable {
+                            val cal = java.util.Calendar.getInstance()
+                            val parts = dateOfBirth.split("/")
+                            if (parts.size == 3) {
+                                parts[2].toIntOrNull()?.let { y -> cal.set(java.util.Calendar.YEAR, y) }
+                                parts[1].toIntOrNull()?.let { m -> cal.set(java.util.Calendar.MONTH, m - 1) }
+                                parts[0].toIntOrNull()?.let { d -> cal.set(java.util.Calendar.DAY_OF_MONTH, d) }
+                            }
+                            android.app.DatePickerDialog(
+                                context,
+                                { _, year, month, dayOfMonth ->
+                                    dateOfBirth = String.format(Locale.US, "%02d/%02d/%04d", dayOfMonth, month + 1, year)
+                                },
+                                cal.get(java.util.Calendar.YEAR),
+                                cal.get(java.util.Calendar.MONTH),
+                                cal.get(java.util.Calendar.DAY_OF_MONTH)
+                            ).show()
+                        }
+                )
+            }
         }
 
         item {
@@ -3591,7 +3629,8 @@ fun EmergencyCardView(viewModel: HealthViewModel, lang: String) {
                     viewModel.saveEmergencyCard(
                         name, blood, conditions, allergies, cName, cPhone, notes,
                         sex = sex,
-                        numberOfChildren = childrenStr.toIntOrNull() ?: 0
+                        numberOfChildren = childrenStr.toIntOrNull() ?: 0,
+                        dateOfBirth = dateOfBirth
                     )
                 },
                 modifier = Modifier
@@ -4794,6 +4833,29 @@ fun SettingsScreen(viewModel: HealthViewModel, lang: String) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Icon(Icons.Default.FolderZip, contentDescription = null, modifier = Modifier.size(14.dp))
                                 Text(trans("import_zip"), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        // One-time cleanup for records duplicated by old backup imports
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.deduplicateExistingRecords { removed ->
+                                    val total = removed.values.sum()
+                                    importStatusMessage = if (total > 0) {
+                                        trans("duplicates_removed_message").replace("%1", total.toString())
+                                    } else {
+                                        trans("no_duplicates_found")
+                                    }
+                                    showImportStatus = true
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = WarningYellow),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Icon(Icons.Default.CleaningServices, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Text(trans("remove_duplicates"), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }

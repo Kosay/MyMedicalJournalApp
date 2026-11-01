@@ -189,7 +189,8 @@ fun OnboardingScreen(
                                     contactName = contactName,
                                     contactPhone = contactPhone,
                                     additionalNotes = additionalNotes,
-                                    sex = sex
+                                    sex = sex,
+                                    dateOfBirth = dateOfBirth
                                 )
                                 viewModel.completeOnboarding(info, heightCm, weightKg)
                                 onFinished()

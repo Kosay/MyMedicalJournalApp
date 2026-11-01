@@ -394,7 +394,11 @@ object LocalStrings {
             "app_lock_set_pin_subtitle" to "Choose a 4-digit PIN to protect your health records",
             "continue_label" to "Continue",
             "unlock" to "Unlock",
-            "edit_vaccination_title" to "Edit Vaccination"
+            "edit_vaccination_title" to "Edit Vaccination",
+            "remove_duplicates" to "Remove Duplicate Records",
+            "duplicates_removed_message" to "Removed %1 duplicate record(s).",
+            "no_duplicates_found" to "No duplicate records found.",
+            "emergency_card_disclaimer" to "This card displays critical medical context if first responders need to view your records instantly."
         ),
         "ar" to mapOf(
             "dashboard" to "لوحة البيانات",
@@ -788,7 +792,11 @@ object LocalStrings {
             "app_lock_set_pin_subtitle" to "اختر رمز PIN من 4 أرقام لحماية سجلاتك الصحية",
             "continue_label" to "استمرار",
             "unlock" to "فتح القفل",
-            "edit_vaccination_title" to "تعديل التطعيم"
+            "edit_vaccination_title" to "تعديل التطعيم",
+            "remove_duplicates" to "إزالة السجلات المكررة",
+            "duplicates_removed_message" to "تمت إزالة %1 سجل مكرر.",
+            "no_duplicates_found" to "لم يتم العثور على سجلات مكررة.",
+            "emergency_card_disclaimer" to "تعرض هذه البطاقة معلومات طبية حرجة إذا احتاج المستجيبون الأوائل لرؤية سجلاتك فورًا."
         )
     )
 

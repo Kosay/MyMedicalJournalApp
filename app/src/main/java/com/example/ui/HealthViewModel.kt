@@ -648,7 +648,8 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         contactPhone: String,
         additionalNotes: String,
         sex: String,
-        numberOfChildren: Int
+        numberOfChildren: Int,
+        dateOfBirth: String = ""
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertEmergencyInfo(
@@ -661,7 +662,8 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                     contactPhone = contactPhone,
                     additionalNotes = additionalNotes,
                     sex = sex,
-                    numberOfChildren = numberOfChildren
+                    numberOfChildren = numberOfChildren,
+                    dateOfBirth = dateOfBirth
                 )
             )
         }
@@ -948,7 +950,8 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                         JSONObject().put("name", r.name).put("dosage", r.dosage).put("frequency", r.frequency).put("active", r.isActive)
                     }))
                     json.put("lab_results", toJsonArray(labResults.value.map { r ->
-                        JSONObject().put("test", r.testName).put("value", r.value).put("unit", r.unit)
+                        val (normValue, normUnit) = normalizeLabResultForExport(r.testName, r.value, r.unit)
+                        JSONObject().put("test", r.testName).put("value", normValue).put("unit", normUnit)
                             .put("ref_range", r.referenceRange).put("timestamp", formatDate(r.timestamp))
                     }))
                     json.put("symptoms", toJsonArray(symptoms.value.map { r ->
@@ -1079,6 +1082,57 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /** Full snapshot of ALL tables from the DB (not the active-profile-filtered flows). */
+    /**
+     * 30-day summary block added to JSON exports: BP/blood-sugar/weight averages and extremes,
+     * plus a Stage-2-hypertension reading count (systolic >= 140 or diastolic >= 90, the same
+     * threshold already used in generateHTMLContent's BP status badges). Skips a metric entirely
+     * when there's no data in the window rather than reporting misleading zeros. Takes already
+     * profile-scoped lists (rather than fetching them itself) so it can be called from both the
+     * non-suspend generateJSON() and the suspend generateFullJSON().
+     */
+    private fun buildExportSummary(
+        bpRecords: List<BloodPressureRecord>,
+        sugarRecords: List<BloodSugarRecord>,
+        weightRecords: List<WeightRecord>
+    ): JSONObject {
+        val since = System.currentTimeMillis() - 30L * 24 * 3600 * 1000
+        val summary = JSONObject()
+        summary.put("period_days", 30)
+
+        val bpList = bpRecords.filter { it.timestamp >= since }
+        if (bpList.isNotEmpty()) {
+            summary.put("blood_pressure", JSONObject().apply {
+                put("avg_systolic", bpList.map { it.systolic }.average())
+                put("avg_diastolic", bpList.map { it.diastolic }.average())
+                put("avg_heart_rate", bpList.map { it.heartRate }.average())
+                put("highest_systolic", bpList.maxOf { it.systolic })
+                put("lowest_systolic", bpList.minOf { it.systolic })
+                put("hypertension_stage2_count", bpList.count { it.systolic >= 140 || it.diastolic >= 90 })
+            })
+        }
+
+        val sugarList = sugarRecords.filter { it.timestamp >= since }
+        if (sugarList.isNotEmpty()) {
+            val mgDlValues = sugarList.map { normalizeBloodSugarToMgDl(it.value, it.unit) }
+            summary.put("blood_sugar", JSONObject().apply {
+                put("avg_mgdl", mgDlValues.average())
+                put("highest_mgdl", mgDlValues.maxOf { it })
+                put("lowest_mgdl", mgDlValues.minOf { it })
+            })
+        }
+
+        val weightList = weightRecords.filter { it.timestamp >= since }
+        if (weightList.isNotEmpty()) {
+            summary.put("weight", JSONObject().apply {
+                put("avg_kg", weightList.map { it.weightKg }.average())
+                put("highest_kg", weightList.maxOf { it.weightKg })
+                put("lowest_kg", weightList.minOf { it.weightKg })
+            })
+        }
+
+        return summary
+    }
+
     private suspend fun generateFullJSON(profileFilter: Int?): JSONObject {
         fun <T> List<T>.byProfile(profileOf: (T) -> Int): List<T> =
             if (profileFilter == null) this else filter { profileOf(it) == profileFilter }
@@ -1109,8 +1163,9 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                 .put("category", it.category).put("timestamp", it.timestamp).put("notes", it.notes)
         }))
         root.put("lab_results", toJsonArray(repository.allLabResults.first().byProfile { it.profileId }.map {
-            JSONObject().put("profileId", it.profileId).put("testName", it.testName).put("value", it.value)
-                .put("unit", it.unit).put("referenceRange", it.referenceRange).put("timestamp", it.timestamp)
+            val (normValue, normUnit) = normalizeLabResultForExport(it.testName, it.value, it.unit)
+            JSONObject().put("profileId", it.profileId).put("testName", it.testName).put("value", normValue)
+                .put("unit", normUnit).put("referenceRange", it.referenceRange).put("timestamp", it.timestamp)
         }))
         root.put("mood_records", toJsonArray(repository.allMoods.first().byProfile { it.profileId }.map {
             JSONObject().put("profileId", it.profileId).put("score", it.score)
@@ -1146,9 +1201,20 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                     put("contactName", info.contactName); put("contactPhone", info.contactPhone)
                     put("additionalNotes", info.additionalNotes); put("sex", info.sex)
                     put("numberOfChildren", info.numberOfChildren)
+                    put("dateOfBirth", info.dateOfBirth)
+                    put("age", ageYears(info.dateOfBirth) ?: JSONObject.NULL)
+                    put("heightCm", heightCm.value)
                 })
             }
         }
+        root.put(
+            "summary",
+            buildExportSummary(
+                repository.allBloodPressure.first().byProfile { it.profileId },
+                repository.allBloodSugar.first().byProfile { it.profileId },
+                repository.allWeight.first().byProfile { it.profileId }
+            )
+        )
         root.put("export_date", formatDate(System.currentTimeMillis()))
         root.put("format", "zip_full_v1")
         return root
@@ -2135,7 +2201,18 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
     // Converts a blood sugar reading to mg/dL so the value is unambiguous for clinics
     // that default to mg/dL (e.g. DataDoctorPro stores it as a plain string with no unit).
     private fun normalizeBloodSugarToMgDl(value: Float, unit: String): Float {
-        return if (unit.equals("mmol/L", ignoreCase = true)) value * 18.0182f else value
+        return if (unit.equals("mmol/L", ignoreCase = true)) value * LabUnitConversion.GLUCOSE_MMOL_TO_MGDL else value
+    }
+
+    /**
+     * Normalizes a lab result's value/unit to mg/dL for export only — the stored Room record
+     * and the entry UI (LabResultDetailView) are untouched, so a value entered in mmol/L still
+     * displays in mmol/L in the app. Unrecognized test names or already-mg/dL values pass through.
+     */
+    private fun normalizeLabResultForExport(testName: String, value: Float, unit: String): Pair<Float, String> {
+        if (!unit.equals("mmol/L", ignoreCase = true)) return Pair(value, unit)
+        val factor = LabUnitConversion.factorForTestName(testName) ?: return Pair(value, unit)
+        return Pair(value * factor, "mg/dL")
     }
 
     // Builds a CSV scoped to the date range and to the record categories DataDoctorPro's
@@ -2291,11 +2368,12 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
 
         val labArr = JSONArray()
         labResults.value.forEach {
+            val (normValue, normUnit) = normalizeLabResultForExport(it.testName, it.value, it.unit)
             labArr.put(JSONObject().apply {
                 put("profileId", it.profileId)
                 put("testName", it.testName)
-                put("value", it.value)
-                put("unit", it.unit)
+                put("value", normValue)
+                put("unit", normUnit)
                 put("referenceRange", it.referenceRange)
                 put("timestamp", it.timestamp)
             })
@@ -2313,8 +2391,12 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                 put("additionalNotes", info.additionalNotes)
                 put("sex", info.sex)
                 put("numberOfChildren", info.numberOfChildren)
+                put("dateOfBirth", info.dateOfBirth)
+                put("age", ageYears(info.dateOfBirth) ?: JSONObject.NULL)
+                put("heightCm", heightCm.value)
             })
         }
+        root.put("summary", buildExportSummary(bloodPressureRecords.value, bloodSugarRecords.value, weightRecords.value))
 
         val moodArr = JSONArray()
         moodRecords.value.forEach {
@@ -2870,22 +2952,53 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // Record identity keys used to skip re-inserting a row a backup already restored before.
+    // Autoincrement primary keys mean OnConflictStrategy.REPLACE can't catch this on its own —
+    // every restore would otherwise create fresh duplicate rows (see restoreFromJSON below).
+    private fun bpKey(profileId: Int, timestamp: Long, systolic: Int, diastolic: Int, heartRate: Int) =
+        "$profileId|$timestamp|$systolic|$diastolic|$heartRate"
+    private fun weightKey(profileId: Int, timestamp: Long, weightKg: Float) = "$profileId|$timestamp|$weightKg"
+    private fun medicationKey(profileId: Int, name: String, dosage: String, frequency: String) =
+        "$profileId|$name|$dosage|$frequency"
+    private fun symptomKey(profileId: Int, timestamp: Long, symptomName: String, severity: String) =
+        "$profileId|$timestamp|$symptomName|$severity"
+    private fun sleepKey(profileId: Int, timestamp: Long, hours: Float) = "$profileId|$timestamp|$hours"
+    private fun bloodSugarKey(profileId: Int, timestamp: Long, value: Float, unit: String, category: String) =
+        "$profileId|$timestamp|$value|$unit|$category"
+    private fun labResultKey(profileId: Int, timestamp: Long, testName: String, value: Float, unit: String) =
+        "$profileId|$timestamp|$testName|$value|$unit"
+    private fun moodKey(profileId: Int, timestamp: Long, score: Int) = "$profileId|$timestamp|$score"
+    private fun familyMemberKey(name: String, relationship: String, dateOfBirth: String) =
+        "$name|$relationship|$dateOfBirth"
+    private fun heightKey(profileId: Int, timestamp: Long, heightCm: Float) = "$profileId|$timestamp|$heightCm"
+    private fun periodKey(profileId: Int, startTimestamp: Long, endTimestamp: Long, flow: String) =
+        "$profileId|$startTimestamp|$endTimestamp|$flow"
+
     private suspend fun restoreFromJSON(jsonStr: String): Boolean = withContext(Dispatchers.IO) {
         try {
             val root = JSONObject(jsonStr)
-            
+
             // 1. Blood Pressure
             root.optJSONArray("blood_pressure")?.let { arr ->
+                val existing = repository.allBloodPressure.first()
+                    .map { bpKey(it.profileId, it.timestamp, it.systolic, it.diastolic, it.heartRate) }.toMutableSet()
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
+                    val profileId = obj.optInt("profileId", 0)
+                    val systolic = obj.optInt("systolic")
+                    val diastolic = obj.optInt("diastolic")
+                    val heartRate = obj.optInt("heartRate")
+                    val timestamp = obj.optLong("timestamp", System.currentTimeMillis())
+                    val key = bpKey(profileId, timestamp, systolic, diastolic, heartRate)
+                    if (!existing.add(key)) continue
                     repository.insertBloodPressure(
                         BloodPressureRecord(
                             id = obj.optInt("id", 0),
-                            profileId = obj.optInt("profileId", 0),
-                            systolic = obj.optInt("systolic"),
-                            diastolic = obj.optInt("diastolic"),
-                            heartRate = obj.optInt("heartRate"),
-                            timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
+                            profileId = profileId,
+                            systolic = systolic,
+                            diastolic = diastolic,
+                            heartRate = heartRate,
+                            timestamp = timestamp,
                             notes = obj.optString("notes")
                         )
                     )
@@ -2894,14 +3007,21 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
 
             // 2. Weight
             root.optJSONArray("weight")?.let { arr ->
+                val existing = repository.allWeight.first()
+                    .map { weightKey(it.profileId, it.timestamp, it.weightKg) }.toMutableSet()
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
+                    val profileId = obj.optInt("profileId", 0)
+                    val weightKg = obj.optDouble("weightKg").toFloat()
+                    val timestamp = obj.optLong("timestamp", System.currentTimeMillis())
+                    val key = weightKey(profileId, timestamp, weightKg)
+                    if (!existing.add(key)) continue
                     repository.insertWeight(
                         WeightRecord(
                             id = obj.optInt("id", 0),
-                            profileId = obj.optInt("profileId", 0),
-                            weightKg = obj.optDouble("weightKg").toFloat(),
-                            timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
+                            profileId = profileId,
+                            weightKg = weightKg,
+                            timestamp = timestamp,
                             notes = obj.optString("notes")
                         )
                     )
@@ -2910,15 +3030,23 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
 
             // 3. Medications
             root.optJSONArray("medications")?.let { arr ->
+                val existing = repository.allMedications.first()
+                    .map { medicationKey(it.profileId, it.name, it.dosage, it.frequency) }.toMutableSet()
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
+                    val profileId = obj.optInt("profileId", 0)
+                    val name = obj.optString("name")
+                    val dosage = obj.optString("dosage")
+                    val frequency = obj.optString("frequency")
+                    val key = medicationKey(profileId, name, dosage, frequency)
+                    if (!existing.add(key)) continue
                     repository.insertMedication(
                         MedicationRecord(
                             id = obj.optInt("id", 0),
-                            profileId = obj.optInt("profileId", 0),
-                            name = obj.optString("name"),
-                            dosage = obj.optString("dosage"),
-                            frequency = obj.optString("frequency"),
+                            profileId = profileId,
+                            name = name,
+                            dosage = dosage,
+                            frequency = frequency,
                             isActive = obj.optBoolean("isActive", true)
                         )
                     )
@@ -2927,15 +3055,23 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
 
             // 4. Symptoms
             root.optJSONArray("symptoms")?.let { arr ->
+                val existing = repository.allSymptoms.first()
+                    .map { symptomKey(it.profileId, it.timestamp, it.symptomName, it.severity) }.toMutableSet()
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
+                    val profileId = obj.optInt("profileId", 0)
+                    val symptomName = obj.optString("symptomName")
+                    val severity = obj.optString("severity")
+                    val timestamp = obj.optLong("timestamp", System.currentTimeMillis())
+                    val key = symptomKey(profileId, timestamp, symptomName, severity)
+                    if (!existing.add(key)) continue
                     repository.insertSymptom(
                         SymptomRecord(
                             id = obj.optInt("id", 0),
-                            profileId = obj.optInt("profileId", 0),
-                            symptomName = obj.optString("symptomName"),
-                            severity = obj.optString("severity"),
-                            timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
+                            profileId = profileId,
+                            symptomName = symptomName,
+                            severity = severity,
+                            timestamp = timestamp,
                             notes = obj.optString("notes")
                         )
                     )
@@ -2944,14 +3080,21 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
 
             // 5. Sleep
             root.optJSONArray("sleep")?.let { arr ->
+                val existing = repository.allSleep.first()
+                    .map { sleepKey(it.profileId, it.timestamp, it.hours) }.toMutableSet()
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
+                    val profileId = obj.optInt("profileId", 0)
+                    val hours = obj.optDouble("hours").toFloat()
+                    val timestamp = obj.optLong("timestamp", System.currentTimeMillis())
+                    val key = sleepKey(profileId, timestamp, hours)
+                    if (!existing.add(key)) continue
                     repository.insertSleep(
                         SleepRecord(
                             id = obj.optInt("id", 0),
-                            profileId = obj.optInt("profileId", 0),
-                            hours = obj.optDouble("hours").toFloat(),
-                            timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
+                            profileId = profileId,
+                            hours = hours,
+                            timestamp = timestamp,
                             notes = obj.optString("notes")
                         )
                     )
@@ -2960,16 +3103,25 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
 
             // 6. Blood Sugar
             root.optJSONArray("blood_sugar")?.let { arr ->
+                val existing = repository.allBloodSugar.first()
+                    .map { bloodSugarKey(it.profileId, it.timestamp, it.value, it.unit, it.category) }.toMutableSet()
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
+                    val profileId = obj.optInt("profileId", 0)
+                    val value = obj.optDouble("value").toFloat()
+                    val unit = obj.optString("unit", "mg/dL")
+                    val category = obj.optString("category", "Fasting")
+                    val timestamp = obj.optLong("timestamp", System.currentTimeMillis())
+                    val key = bloodSugarKey(profileId, timestamp, value, unit, category)
+                    if (!existing.add(key)) continue
                     repository.insertBloodSugar(
                         BloodSugarRecord(
                             id = obj.optInt("id", 0),
-                            profileId = obj.optInt("profileId", 0),
-                            value = obj.optDouble("value").toFloat(),
-                            unit = obj.optString("unit", "mg/dL"),
-                            category = obj.optString("category", "Fasting"),
-                            timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
+                            profileId = profileId,
+                            value = value,
+                            unit = unit,
+                            category = category,
+                            timestamp = timestamp,
                             notes = obj.optString("notes")
                         )
                     )
@@ -2978,23 +3130,32 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
 
             // 7. Lab Results
             root.optJSONArray("lab_results")?.let { arr ->
+                val existing = repository.allLabResults.first()
+                    .map { labResultKey(it.profileId, it.timestamp, it.testName, it.value, it.unit) }.toMutableSet()
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
+                    val profileId = obj.optInt("profileId", 0)
+                    val testName = obj.optString("testName")
+                    val value = obj.optDouble("value").toFloat()
+                    val unit = obj.optString("unit")
+                    val timestamp = obj.optLong("timestamp", System.currentTimeMillis())
+                    val key = labResultKey(profileId, timestamp, testName, value, unit)
+                    if (!existing.add(key)) continue
                     repository.insertLabResult(
                         LabResultRecord(
                             id = obj.optInt("id", 0),
-                            profileId = obj.optInt("profileId", 0),
-                            testName = obj.optString("testName"),
-                            value = obj.optDouble("value").toFloat(),
-                            unit = obj.optString("unit"),
+                            profileId = profileId,
+                            testName = testName,
+                            value = value,
+                            unit = unit,
                             referenceRange = obj.optString("referenceRange"),
-                            timestamp = obj.optLong("timestamp", System.currentTimeMillis())
+                            timestamp = timestamp
                         )
                     )
                 }
             }
 
-            // 8. Emergency Info
+            // 8. Emergency Info — single row keyed by a fixed id, REPLACE already handles this correctly.
             root.optJSONObject("emergency_info")?.let { obj ->
                 repository.insertEmergencyInfo(
                     EmergencyInfo(
@@ -3007,21 +3168,29 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                         contactPhone = obj.optString("contactPhone"),
                         additionalNotes = obj.optString("additionalNotes"),
                         sex = obj.optString("sex"),
-                        numberOfChildren = obj.optInt("numberOfChildren", 0)
+                        numberOfChildren = obj.optInt("numberOfChildren", 0),
+                        dateOfBirth = obj.optString("dateOfBirth")
                     )
                 )
             }
 
             // 9. Mood Records
             root.optJSONArray("mood_records")?.let { arr ->
+                val existing = repository.allMoods.first()
+                    .map { moodKey(it.profileId, it.timestamp, it.score) }.toMutableSet()
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
+                    val profileId = obj.optInt("profileId", 0)
+                    val score = obj.optInt("score", 3)
+                    val timestamp = obj.optLong("timestamp", System.currentTimeMillis())
+                    val key = moodKey(profileId, timestamp, score)
+                    if (!existing.add(key)) continue
                     repository.insertMood(
                         MoodRecord(
-                            profileId = obj.optInt("profileId", 0),
-                            score = obj.optInt("score", 3),
+                            profileId = profileId,
+                            score = score,
                             notes = obj.optString("notes"),
-                            timestamp = obj.optLong("timestamp", System.currentTimeMillis())
+                            timestamp = timestamp
                         )
                     )
                 }
@@ -3029,14 +3198,21 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
 
             // 10. Family Members
             root.optJSONArray("family_members")?.let { arr ->
+                val existing = repository.allFamilyMembers.first()
+                    .map { familyMemberKey(it.name, it.relationship, it.dateOfBirth) }.toMutableSet()
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
+                    val name = obj.optString("name")
+                    val relationship = obj.optString("relationship")
+                    val dateOfBirth = obj.optString("dateOfBirth")
+                    val key = familyMemberKey(name, relationship, dateOfBirth)
+                    if (!existing.add(key)) continue
                     repository.insertFamilyMember(
                         FamilyMemberProfile(
                             id = obj.optInt("id", 0),
-                            name = obj.optString("name"),
-                            relationship = obj.optString("relationship"),
-                            dateOfBirth = obj.optString("dateOfBirth"),
+                            name = name,
+                            relationship = relationship,
+                            dateOfBirth = dateOfBirth,
                             bloodType = obj.optString("bloodType"),
                             notes = obj.optString("notes"),
                             sex = obj.optString("sex"),
@@ -3053,14 +3229,21 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
 
             // 11. Height records (child growth)
             root.optJSONArray("height_records")?.let { arr ->
+                val existing = repository.allHeights.first()
+                    .map { heightKey(it.profileId, it.timestamp, it.heightCm) }.toMutableSet()
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
+                    val profileId = obj.optInt("profileId", 0)
+                    val heightCmVal = obj.optDouble("heightCm").toFloat()
+                    val timestamp = obj.optLong("timestamp", System.currentTimeMillis())
+                    val key = heightKey(profileId, timestamp, heightCmVal)
+                    if (!existing.add(key)) continue
                     repository.insertHeight(
                         HeightRecord(
                             id = obj.optInt("id", 0),
-                            profileId = obj.optInt("profileId", 0),
-                            heightCm = obj.optDouble("heightCm").toFloat(),
-                            timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
+                            profileId = profileId,
+                            heightCm = heightCmVal,
+                            timestamp = timestamp,
                             notes = obj.optString("notes")
                         )
                     )
@@ -3069,15 +3252,23 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
 
             // 12. Period records
             root.optJSONArray("period_records")?.let { arr ->
+                val existing = repository.allPeriods.first()
+                    .map { periodKey(it.profileId, it.startTimestamp, it.endTimestamp, it.flow) }.toMutableSet()
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
+                    val profileId = obj.optInt("profileId", 0)
+                    val startTimestamp = obj.optLong("startTimestamp", System.currentTimeMillis())
+                    val endTimestamp = obj.optLong("endTimestamp", 0L)
+                    val flow = obj.optString("flow", "Medium")
+                    val key = periodKey(profileId, startTimestamp, endTimestamp, flow)
+                    if (!existing.add(key)) continue
                     repository.insertPeriod(
                         PeriodRecord(
                             id = obj.optInt("id", 0),
-                            profileId = obj.optInt("profileId", 0),
-                            startTimestamp = obj.optLong("startTimestamp", System.currentTimeMillis()),
-                            endTimestamp = obj.optLong("endTimestamp", 0L),
-                            flow = obj.optString("flow", "Medium"),
+                            profileId = profileId,
+                            startTimestamp = startTimestamp,
+                            endTimestamp = endTimestamp,
+                            flow = flow,
                             notes = obj.optString("notes")
                         )
                     )
@@ -3088,6 +3279,63 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         } catch (e: Exception) {
             Log.e("Restore", "Failed to parse json backup", e)
             false
+        }
+    }
+
+    /**
+     * One-time cleanup for records duplicated by old backup imports (before the dedup fix in
+     * restoreFromJSON above existed). Groups each table by the same identity key used there and
+     * deletes every row in a group after the first. Returns a map of table name -> rows removed.
+     */
+    fun deduplicateExistingRecords(onResult: (Map<String, Int>) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val removed = mutableMapOf<String, Int>()
+
+            val bpList = repository.allBloodPressure.first()
+            removed["blood_pressure"] = bpList.groupBy { bpKey(it.profileId, it.timestamp, it.systolic, it.diastolic, it.heartRate) }
+                .values.sumOf { group -> group.drop(1).onEach { repository.deleteBloodPressure(it) }.size }
+
+            val weightList = repository.allWeight.first()
+            removed["weight"] = weightList.groupBy { weightKey(it.profileId, it.timestamp, it.weightKg) }
+                .values.sumOf { group -> group.drop(1).onEach { repository.deleteWeight(it) }.size }
+
+            val medList = repository.allMedications.first()
+            removed["medications"] = medList.groupBy { medicationKey(it.profileId, it.name, it.dosage, it.frequency) }
+                .values.sumOf { group -> group.drop(1).onEach { repository.deleteMedication(it) }.size }
+
+            val symptomList = repository.allSymptoms.first()
+            removed["symptoms"] = symptomList.groupBy { symptomKey(it.profileId, it.timestamp, it.symptomName, it.severity) }
+                .values.sumOf { group -> group.drop(1).onEach { repository.deleteSymptom(it) }.size }
+
+            val sleepList = repository.allSleep.first()
+            removed["sleep"] = sleepList.groupBy { sleepKey(it.profileId, it.timestamp, it.hours) }
+                .values.sumOf { group -> group.drop(1).onEach { repository.deleteSleep(it) }.size }
+
+            val sugarList = repository.allBloodSugar.first()
+            removed["blood_sugar"] = sugarList.groupBy { bloodSugarKey(it.profileId, it.timestamp, it.value, it.unit, it.category) }
+                .values.sumOf { group -> group.drop(1).onEach { repository.deleteBloodSugar(it) }.size }
+
+            val labList = repository.allLabResults.first()
+            removed["lab_results"] = labList.groupBy { labResultKey(it.profileId, it.timestamp, it.testName, it.value, it.unit) }
+                .values.sumOf { group -> group.drop(1).onEach { repository.deleteLabResult(it) }.size }
+
+            val moodList = repository.allMoods.first()
+            removed["mood_records"] = moodList.groupBy { moodKey(it.profileId, it.timestamp, it.score) }
+                .values.sumOf { group -> group.drop(1).onEach { repository.deleteMood(it) }.size }
+
+            val familyList = repository.allFamilyMembers.first()
+            removed["family_members"] = familyList.groupBy { familyMemberKey(it.name, it.relationship, it.dateOfBirth) }
+                .values.sumOf { group -> group.drop(1).onEach { repository.deleteFamilyMember(it) }.size }
+
+            val heightList = repository.allHeights.first()
+            removed["height_records"] = heightList.groupBy { heightKey(it.profileId, it.timestamp, it.heightCm) }
+                .values.sumOf { group -> group.drop(1).onEach { repository.deleteHeight(it) }.size }
+
+            val periodList = repository.allPeriods.first()
+            removed["period_records"] = periodList.groupBy { periodKey(it.profileId, it.startTimestamp, it.endTimestamp, it.flow) }
+                .values.sumOf { group -> group.drop(1).onEach { repository.deletePeriod(it) }.size }
+
+            withContext(Dispatchers.Main) { onResult(removed) }
         }
     }
 }
@@ -3147,6 +3395,30 @@ private fun buildBpBuckets(
             avgDiastolic = recs.map { it.diastolic }.average().toFloat(),
             count = recs.size
         )
+    }
+}
+
+/**
+ * Shared mg/dL <-> mmol/L conversion factors. Previously there were three independently
+ * maintained copies of the glucose factor (HealthViewModel.normalizeBloodSugarToMgDl and two
+ * inline copies in MainScreen.kt's getBloodSugarStatus/getBloodSugarStatusColor) that could
+ * drift out of sync with each other; this consolidates them and adds cholesterol/triglyceride
+ * factors for lab-result export normalization.
+ */
+object LabUnitConversion {
+    const val GLUCOSE_MMOL_TO_MGDL = 18.0182f
+    const val CHOLESTEROL_MMOL_TO_MGDL = 38.67f
+    const val TRIGLYCERIDES_MMOL_TO_MGDL = 88.57f
+
+    /** The mg/dL <-> mmol/L factor for a recognized lab test name, or null if unrecognized. */
+    fun factorForTestName(testName: String): Float? {
+        val name = testName.lowercase()
+        return when {
+            "cholesterol" in name || "hdl" in name || "ldl" in name -> CHOLESTEROL_MMOL_TO_MGDL
+            "triglyceride" in name -> TRIGLYCERIDES_MMOL_TO_MGDL
+            "glucose" in name || "sugar" in name -> GLUCOSE_MMOL_TO_MGDL
+            else -> null
+        }
     }
 }
 
