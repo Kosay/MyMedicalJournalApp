@@ -950,8 +950,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                         JSONObject().put("name", r.name).put("dosage", r.dosage).put("frequency", r.frequency).put("active", r.isActive)
                     }))
                     json.put("lab_results", toJsonArray(labResults.value.map { r ->
-                        val (normValue, normUnit) = normalizeLabResultForExport(r.testName, r.value, r.unit)
-                        JSONObject().put("test", r.testName).put("value", normValue).put("unit", normUnit)
+                        JSONObject().put("test", r.testName).put("value", r.value).put("unit", r.unit)
                             .put("ref_range", r.referenceRange).put("timestamp", formatDate(r.timestamp))
                     }))
                     json.put("symptoms", toJsonArray(symptoms.value.map { r ->
@@ -1163,9 +1162,8 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                 .put("category", it.category).put("timestamp", it.timestamp).put("notes", it.notes)
         }))
         root.put("lab_results", toJsonArray(repository.allLabResults.first().byProfile { it.profileId }.map {
-            val (normValue, normUnit) = normalizeLabResultForExport(it.testName, it.value, it.unit)
-            JSONObject().put("profileId", it.profileId).put("testName", it.testName).put("value", normValue)
-                .put("unit", normUnit).put("referenceRange", it.referenceRange).put("timestamp", it.timestamp)
+            JSONObject().put("profileId", it.profileId).put("testName", it.testName).put("value", it.value)
+                .put("unit", it.unit).put("referenceRange", it.referenceRange).put("timestamp", it.timestamp)
         }))
         root.put("mood_records", toJsonArray(repository.allMoods.first().byProfile { it.profileId }.map {
             JSONObject().put("profileId", it.profileId).put("score", it.score)
@@ -2201,19 +2199,9 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
     // Converts a blood sugar reading to mg/dL so the value is unambiguous for clinics
     // that default to mg/dL (e.g. DataDoctorPro stores it as a plain string with no unit).
     private fun normalizeBloodSugarToMgDl(value: Float, unit: String): Float {
-        return if (unit.equals("mmol/L", ignoreCase = true)) value * LabUnitConversion.GLUCOSE_MMOL_TO_MGDL else value
+        return if (unit.equals("mmol/L", ignoreCase = true)) value * 18.0182f else value
     }
 
-    /**
-     * Normalizes a lab result's value/unit to mg/dL for export only — the stored Room record
-     * and the entry UI (LabResultDetailView) are untouched, so a value entered in mmol/L still
-     * displays in mmol/L in the app. Unrecognized test names or already-mg/dL values pass through.
-     */
-    private fun normalizeLabResultForExport(testName: String, value: Float, unit: String): Pair<Float, String> {
-        if (!unit.equals("mmol/L", ignoreCase = true)) return Pair(value, unit)
-        val factor = LabUnitConversion.factorForTestName(testName) ?: return Pair(value, unit)
-        return Pair(value * factor, "mg/dL")
-    }
 
     // Builds a CSV scoped to the date range and to the record categories DataDoctorPro's
     // "Import Journal Data" dialog understands (BloodPressure, BloodSugar, Weight, Sleep),
@@ -2368,12 +2356,11 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
 
         val labArr = JSONArray()
         labResults.value.forEach {
-            val (normValue, normUnit) = normalizeLabResultForExport(it.testName, it.value, it.unit)
             labArr.put(JSONObject().apply {
                 put("profileId", it.profileId)
                 put("testName", it.testName)
-                put("value", normValue)
-                put("unit", normUnit)
+                put("value", it.value)
+                put("unit", it.unit)
                 put("referenceRange", it.referenceRange)
                 put("timestamp", it.timestamp)
             })
@@ -3405,23 +3392,6 @@ private fun buildBpBuckets(
  * drift out of sync with each other; this consolidates them and adds cholesterol/triglyceride
  * factors for lab-result export normalization.
  */
-object LabUnitConversion {
-    const val GLUCOSE_MMOL_TO_MGDL = 18.0182f
-    const val CHOLESTEROL_MMOL_TO_MGDL = 38.67f
-    const val TRIGLYCERIDES_MMOL_TO_MGDL = 88.57f
-
-    /** The mg/dL <-> mmol/L factor for a recognized lab test name, or null if unrecognized. */
-    fun factorForTestName(testName: String): Float? {
-        val name = testName.lowercase()
-        return when {
-            "cholesterol" in name || "hdl" in name || "ldl" in name -> CHOLESTEROL_MMOL_TO_MGDL
-            "triglyceride" in name -> TRIGLYCERIDES_MMOL_TO_MGDL
-            "glucose" in name || "sugar" in name -> GLUCOSE_MMOL_TO_MGDL
-            else -> null
-        }
-    }
-}
-
 class HealthViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(HealthViewModel::class.java)) {

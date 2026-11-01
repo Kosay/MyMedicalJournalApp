@@ -420,7 +420,7 @@ fun getBloodPressureStatusColor(systolic: Int, diastolic: Int): Color {
 
 // Helpers for Blood Sugar Classifications
 fun getBloodSugarStatus(value: Float, category: String, lang: String, unit: String = "mg/dL"): String {
-    val mgDl = if (unit == "mmol/L") value * com.example.ui.LabUnitConversion.GLUCOSE_MMOL_TO_MGDL else value
+    val mgDl = if (unit == "mmol/L") value * 18.0182f else value
     val en = lang == "en"
     return when (category.lowercase(Locale.US)) {
         "fasting" -> {
@@ -450,7 +450,7 @@ fun getBloodSugarStatus(value: Float, category: String, lang: String, unit: Stri
 }
 
 fun getBloodSugarStatusColor(value: Float, category: String, unit: String = "mg/dL"): Color {
-    val mgDl = if (unit == "mmol/L") value * com.example.ui.LabUnitConversion.GLUCOSE_MMOL_TO_MGDL else value
+    val mgDl = if (unit == "mmol/L") value * 18.0182f else value
     return when (category.lowercase(Locale.US)) {
         "fasting" -> {
             when {
