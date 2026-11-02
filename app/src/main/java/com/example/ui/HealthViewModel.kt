@@ -1139,11 +1139,11 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         val root = JSONObject()
         root.put("blood_pressure", toJsonArray(repository.allBloodPressure.first().byProfile { it.profileId }.map {
             JSONObject().put("profileId", it.profileId).put("systolic", it.systolic).put("diastolic", it.diastolic)
-                .put("heartRate", it.heartRate).put("timestamp", it.timestamp).put("notes", it.notes)
+                .put("heartRate", it.heartRate).put("timestamp", formatDate(it.timestamp)).put("notes", it.notes)
         }))
         root.put("weight", toJsonArray(repository.allWeight.first().byProfile { it.profileId }.map {
             JSONObject().put("profileId", it.profileId).put("weightKg", it.weightKg)
-                .put("timestamp", it.timestamp).put("notes", it.notes)
+                .put("timestamp", formatDate(it.timestamp)).put("notes", it.notes)
         }))
         root.put("medications", toJsonArray(repository.allMedications.first().byProfile { it.profileId }.map {
             JSONObject().put("profileId", it.profileId).put("name", it.name).put("dosage", it.dosage)
@@ -1151,36 +1151,36 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         }))
         root.put("symptoms", toJsonArray(repository.allSymptoms.first().byProfile { it.profileId }.map {
             JSONObject().put("profileId", it.profileId).put("symptomName", it.symptomName)
-                .put("severity", it.severity).put("timestamp", it.timestamp).put("notes", it.notes)
+                .put("severity", it.severity).put("timestamp", formatDate(it.timestamp)).put("notes", it.notes)
         }))
         root.put("sleep", toJsonArray(repository.allSleep.first().byProfile { it.profileId }.map {
             JSONObject().put("profileId", it.profileId).put("hours", it.hours)
-                .put("timestamp", it.timestamp).put("notes", it.notes)
+                .put("timestamp", formatDate(it.timestamp)).put("notes", it.notes)
         }))
         root.put("blood_sugar", toJsonArray(repository.allBloodSugar.first().byProfile { it.profileId }.map {
             JSONObject().put("profileId", it.profileId).put("value", it.value).put("unit", it.unit)
-                .put("category", it.category).put("timestamp", it.timestamp).put("notes", it.notes)
+                .put("category", it.category).put("timestamp", formatDate(it.timestamp)).put("notes", it.notes)
         }))
         root.put("lab_results", toJsonArray(repository.allLabResults.first().byProfile { it.profileId }.map {
             JSONObject().put("profileId", it.profileId).put("testName", it.testName).put("value", it.value)
-                .put("unit", it.unit).put("referenceRange", it.referenceRange).put("timestamp", it.timestamp)
+                .put("unit", it.unit).put("referenceRange", it.referenceRange).put("timestamp", formatDate(it.timestamp))
         }))
         root.put("mood_records", toJsonArray(repository.allMoods.first().byProfile { it.profileId }.map {
             JSONObject().put("profileId", it.profileId).put("score", it.score)
-                .put("notes", it.notes).put("timestamp", it.timestamp)
+                .put("notes", it.notes).put("timestamp", formatDate(it.timestamp))
         }))
         root.put("height_records", toJsonArray(repository.allHeights.first().byProfile { it.profileId }.map {
             JSONObject().put("profileId", it.profileId).put("heightCm", it.heightCm)
-                .put("timestamp", it.timestamp).put("notes", it.notes)
+                .put("timestamp", formatDate(it.timestamp)).put("notes", it.notes)
         }))
         root.put("period_records", toJsonArray(repository.allPeriods.first().byProfile { it.profileId }.map {
-            JSONObject().put("profileId", it.profileId).put("startTimestamp", it.startTimestamp)
-                .put("endTimestamp", it.endTimestamp).put("flow", it.flow).put("notes", it.notes)
+            JSONObject().put("profileId", it.profileId).put("startTimestamp", formatDate(it.startTimestamp))
+                .put("endTimestamp", if (it.endTimestamp > 0) formatDate(it.endTimestamp) else "").put("flow", it.flow).put("notes", it.notes)
         }))
         root.put("attachments", toJsonArray(repository.allAttachments.first().byProfile { it.profileId }.map {
             val ext = it.fileUri.substringAfterLast('.', "").take(5)
             JSONObject().put("profileId", it.profileId).put("title", it.title).put("notes", it.notes)
-                .put("timestamp", it.timestamp)
+                .put("timestamp", formatDate(it.timestamp))
                 .put("zipName", "files/att_${it.id}" + if (ext.isNotEmpty()) ".$ext" else "")
         }))
         // Family profiles always included so profileId references resolve after import
@@ -1660,7 +1660,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
 
     // --- Helper Formatting ---
     fun formatDate(timestamp: Long): String {
-        val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+        val sdf = SimpleDateFormat("dd/MM/yyyy: HH:mm", Locale.getDefault())
         return sdf.format(Date(timestamp))
     }
 
@@ -2289,7 +2289,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                 put("systolic", it.systolic)
                 put("diastolic", it.diastolic)
                 put("heartRate", it.heartRate)
-                put("timestamp", it.timestamp)
+                put("timestamp", formatDate(it.timestamp))
                 put("notes", it.notes)
             })
         }
@@ -2300,7 +2300,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
             wArr.put(JSONObject().apply {
                 put("profileId", it.profileId)
                 put("weightKg", it.weightKg)
-                put("timestamp", it.timestamp)
+                put("timestamp", formatDate(it.timestamp))
                 put("notes", it.notes)
             })
         }
@@ -2324,7 +2324,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                 put("profileId", it.profileId)
                 put("symptomName", it.symptomName)
                 put("severity", it.severity)
-                put("timestamp", it.timestamp)
+                put("timestamp", formatDate(it.timestamp))
                 put("notes", it.notes)
             })
         }
@@ -2335,7 +2335,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
             slArr.put(JSONObject().apply {
                 put("profileId", it.profileId)
                 put("hours", it.hours)
-                put("timestamp", it.timestamp)
+                put("timestamp", formatDate(it.timestamp))
                 put("notes", it.notes)
             })
         }
@@ -2348,7 +2348,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                 put("value", it.value)
                 put("unit", it.unit)
                 put("category", it.category)
-                put("timestamp", it.timestamp)
+                put("timestamp", formatDate(it.timestamp))
                 put("notes", it.notes)
             })
         }
@@ -2362,7 +2362,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                 put("value", it.value)
                 put("unit", it.unit)
                 put("referenceRange", it.referenceRange)
-                put("timestamp", it.timestamp)
+                put("timestamp", formatDate(it.timestamp))
             })
         }
         root.put("lab_results", labArr)
@@ -2391,7 +2391,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
                 put("profileId", it.profileId)
                 put("score", it.score)
                 put("notes", it.notes)
-                put("timestamp", it.timestamp)
+                put("timestamp", formatDate(it.timestamp))
             })
         }
         root.put("mood_records", moodArr)
@@ -2421,7 +2421,7 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
             heightArr.put(JSONObject().apply {
                 put("profileId", it.profileId)
                 put("heightCm", it.heightCm)
-                put("timestamp", it.timestamp)
+                put("timestamp", formatDate(it.timestamp))
                 put("notes", it.notes)
             })
         }
@@ -2431,8 +2431,8 @@ class HealthViewModel(application: Application) : AndroidViewModel(application) 
         periodRecords.value.forEach {
             periodArr.put(JSONObject().apply {
                 put("profileId", it.profileId)
-                put("startTimestamp", it.startTimestamp)
-                put("endTimestamp", it.endTimestamp)
+                put("startTimestamp", formatDate(it.startTimestamp))
+                put("endTimestamp", if (it.endTimestamp > 0) formatDate(it.endTimestamp) else "")
                 put("flow", it.flow)
                 put("notes", it.notes)
             })
